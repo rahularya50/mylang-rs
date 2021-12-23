@@ -6,16 +6,16 @@ use anyhow::{bail, Context, Result};
 use crate::lexer::{tokenize, Token};
 
 #[derive(Debug)]
-pub enum Expr {
-    List(Box<[Expr]>),
+pub enum ParseExpr {
+    List(Box<[ParseExpr]>),
     Symbol(String),
     Integer(i64),
 }
 
-impl Display for Expr {
+impl Display for ParseExpr {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            Expr::List(exprs) => {
+            ParseExpr::List(exprs) => {
                 write!(f, "(")?;
                 let mut exprs = exprs.iter().peekable();
                 while let Some(expr) = exprs.next() {
@@ -27,13 +27,13 @@ impl Display for Expr {
                 write!(f, ")")?;
                 Ok(())
             }
-            Expr::Symbol(val) => val.fmt(f),
-            Expr::Integer(val) => val.fmt(f),
+            ParseExpr::Symbol(val) => val.fmt(f),
+            ParseExpr::Integer(val) => val.fmt(f),
         }
     }
 }
 
-fn read_expr(tokens: &mut Peekable<impl Iterator<Item = Token>>) -> Result<Expr> {
+fn read_expr(tokens: &mut Peekable<impl Iterator<Item = Token>>) -> Result<ParseExpr> {
     match tokens.next().context("input ended unexpectedly")? {
         Token::LeftParen => {
             // reading tail
@@ -42,7 +42,7 @@ fn read_expr(tokens: &mut Peekable<impl Iterator<Item = Token>>) -> Result<Expr>
                 match tokens.peek() {
                     Some(Token::RightParen) => {
                         tokens.next();
-                        break Ok(Expr::List(contents.into_boxed_slice()));
+                        break Ok(ParseExpr::List(contents.into_boxed_slice()));
                     }
                     _ => contents.push(read_expr(tokens)?),
                 }
@@ -51,12 +51,12 @@ fn read_expr(tokens: &mut Peekable<impl Iterator<Item = Token>>) -> Result<Expr>
         Token::RightParen => {
             bail!("unexpected right parenthesis")
         }
-        Token::Integer(val) => Ok(Expr::Integer(val)),
-        Token::Symbol(val) => Ok(Expr::Symbol(val)),
+        Token::Integer(val) => Ok(ParseExpr::Integer(val)),
+        Token::Symbol(val) => Ok(ParseExpr::Symbol(val)),
     }
 }
 
-pub fn parse(stream: &mut impl Iterator<Item = char>) -> Result<Box<[Expr]>> {
+pub fn parse(stream: &mut impl Iterator<Item = char>) -> Result<Box<[ParseExpr]>> {
     let mut tokens = tokenize(&mut stream.peekable())?.into_iter().peekable();
     let mut out = vec![];
     while tokens.peek().is_some() {
