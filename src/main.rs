@@ -17,7 +17,7 @@ fn main() -> Result<()> {
         println!("{}", expr);
     }
 
-    println!("{:#?}", analyze(&exprs));
+    println!("{:#?}", analyze(&exprs)?);
 
     Ok(())
 }

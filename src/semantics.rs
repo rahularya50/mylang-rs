@@ -14,7 +14,7 @@ pub enum Expr {
     IfElse {
         pred: Box<Expr>,
         conseq: Box<Expr>,
-        alt: Box<Expr>,
+        alt: Option<Box<Expr>>,
     },
     IntegerLiteral(i64),
 }
@@ -53,29 +53,49 @@ fn nest_varargs(operator: Operator, mut args: Vec<Expr>) -> Result<Expr> {
     })
 }
 
+fn analyze_arithop(operator: Operator, operands: &[ParseExpr]) -> Result<Expr> {
+    let mut operands = operands.iter().map(analyze_expr).collect::<Result<_>>()?;
+    Ok(if operator.is_variadic() {
+        nest_varargs(operator, operands)?
+    } else if operands.len() == 2 {
+        Expr::ArithOp {
+            operator,
+            arg1: Box::new(operands.pop().unwrap()),
+            arg2: Box::new(operands.pop().unwrap()),
+        }
+    } else {
+        bail!("non-variadic arithops must have exactly two arguments")
+    })
+}
+
+fn analyze_if(operands: &[ParseExpr]) -> Result<Expr> {
+    Ok(match operands {
+        [pred, conseq] => Expr::IfElse {
+            pred: Box::new(analyze_expr(pred)?),
+            conseq: Box::new(analyze_expr(conseq)?),
+            alt: None,
+        },
+        [pred, conseq, alt] => Expr::IfElse {
+            pred: Box::new(analyze_expr(pred)?),
+            conseq: Box::new(analyze_expr(conseq)?),
+            alt: Some(Box::new(analyze_expr(alt)?)),
+        },
+        _ => bail!("if statements must have either two or three arguments"),
+    })
+}
+
 fn analyze_expr(expr: &ParseExpr) -> Result<Expr> {
     Ok(match expr {
         ParseExpr::Integer(val) => Expr::IntegerLiteral(*val),
         ParseExpr::List(call_expr) => {
             if let Some((ParseExpr::Symbol(operator), operands)) = call_expr.split_first() {
-                let operator = match operator.as_str() {
-                    "+" => Operator::Add,
-                    "*" => Operator::Mul,
-                    "-" => Operator::Sub,
-                    "/" => Operator::Div,
+                match operator.as_str() {
+                    "+" => analyze_arithop(Operator::Add, operands)?,
+                    "*" => analyze_arithop(Operator::Mul, operands)?,
+                    "-" => analyze_arithop(Operator::Sub, operands)?,
+                    "/" => analyze_arithop(Operator::Div, operands)?,
+                    "if" => analyze_if(operands)?,
                     _ => bail!("invalid operator in call expression"),
-                };
-                let mut operands = operands.iter().map(analyze_expr).collect::<Result<_>>()?;
-                if operator.is_variadic() {
-                    nest_varargs(operator, operands)?
-                } else if operands.len() == 2 {
-                    Expr::ArithOp {
-                        operator,
-                        arg1: Box::new(operands.pop().unwrap()),
-                        arg2: Box::new(operands.pop().unwrap()),
-                    }
-                } else {
-                    bail!("non-variadic arithops must have exactly two arguments")
                 }
             } else {
                 bail!("call expressions must have an operator")
