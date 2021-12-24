@@ -4,6 +4,14 @@ use crate::parser::ParseExpr;
 
 #[derive(Debug)]
 pub enum Expr {
+    VarDecl {
+        name: String,
+        value: Box<Expr>,
+    },
+    VarAssign {
+        name: String,
+        value: Box<Expr>,
+    },
     VarAccess(String),
     ArithOp {
         operator: Operator,
@@ -14,7 +22,7 @@ pub enum Expr {
     IfElse {
         pred: Box<Expr>,
         conseq: Box<Expr>,
-        alt: Option<Box<Expr>>,
+        alt: Box<Expr>,
     },
     IntegerLiteral(i64),
 }
@@ -73,14 +81,35 @@ fn analyze_if(operands: &[ParseExpr]) -> Result<Expr> {
         [pred, conseq] => Expr::IfElse {
             pred: Box::new(analyze_expr(pred)?),
             conseq: Box::new(analyze_expr(conseq)?),
-            alt: None,
+            // TODO(rahularya) need to allow if *statements* in non-expression context. Will fix when we add type checking
+            alt: Box::new(Expr::IntegerLiteral(0)),
         },
         [pred, conseq, alt] => Expr::IfElse {
             pred: Box::new(analyze_expr(pred)?),
             conseq: Box::new(analyze_expr(conseq)?),
-            alt: Some(Box::new(analyze_expr(alt)?)),
+            alt: Box::new(analyze_expr(alt)?),
         },
         _ => bail!("if statements must have either two or three arguments"),
+    })
+}
+
+fn analyze_define(operands: &[ParseExpr]) -> Result<Expr> {
+    Ok(match operands {
+        [ParseExpr::Symbol(name), expr] => Expr::VarDecl {
+            name: name.to_string(),
+            value: Box::new(analyze_expr(expr)?),
+        },
+        _ => bail!("variable declarations must have two arguments, the first being a symbol"),
+    })
+}
+
+fn analyze_assign(operands: &[ParseExpr]) -> Result<Expr> {
+    Ok(match operands {
+        [ParseExpr::Symbol(name), expr] => Expr::VarAssign {
+            name: name.to_string(),
+            value: Box::new(analyze_expr(expr)?),
+        },
+        _ => bail!("variable declarations must have two arguments, the first being a symbol"),
     })
 }
 
@@ -95,6 +124,9 @@ fn analyze_expr(expr: &ParseExpr) -> Result<Expr> {
                     "-" => analyze_arithop(Operator::Sub, operands)?,
                     "/" => analyze_arithop(Operator::Div, operands)?,
                     "if" => analyze_if(operands)?,
+                    "define" => analyze_define(operands)?,
+                    "set" => analyze_assign(operands)?,
+                    "begin" => analyze(operands)?,
                     _ => bail!("invalid operator in call expression"),
                 }
             } else {
