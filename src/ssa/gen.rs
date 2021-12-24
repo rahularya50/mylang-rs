@@ -76,19 +76,22 @@ pub fn gen_expr_ssa<'a, 'b>(
     func: &mut Function,
     frame: &'b mut Frame<'a>,
     mut block: Rc<BlockRef>,
-) -> Result<(VirtualRegister, Rc<BlockRef>)> {
+) -> Result<(Option<VirtualRegister>, Rc<BlockRef>)> {
     Ok(match expr {
         Expr::VarDecl { name, value } => {
             if frame.lookup(name).is_some() {
                 bail!("variable shadowing is not permitted")
             } else {
                 let (reg, block) = gen_expr_ssa(value, func, frame, block)?;
-                frame.assoc(name.to_string(), reg);
+                frame.assoc(
+                    name.to_string(),
+                    reg.context("cannot use a statement as the RHS of a declaration")?,
+                );
                 (reg, block)
             }
         }
         Expr::VarAccess(name) => (
-            frame.lookup(name).context("variable not found in scope")?,
+            Some(frame.lookup(name).context("variable not found in scope")?),
             block,
         ),
         Expr::VarAssign { name, value } => {
@@ -96,7 +99,10 @@ pub fn gen_expr_ssa<'a, 'b>(
                 .lookup(name)
                 .context("cannot assign to undeclared variable")?;
             let (reg, block) = gen_expr_ssa(value, func, frame, block)?;
-            frame.assoc(name.to_string(), reg);
+            frame.assoc(
+                name.to_string(),
+                reg.context("cannot use a statement as the RHS of an assignment")?,
+            );
             (reg, block)
         }
         Expr::ArithOp {
@@ -112,11 +118,11 @@ pub fn gen_expr_ssa<'a, 'b>(
                 .instructions
                 .push(Instruction::ArithmeticOperation {
                     operator: *operator,
-                    arg1,
-                    arg2,
+                    arg1: arg1.context("cannot pass a statement as an argument")?,
+                    arg2: arg2.context("cannot pass a statement as an argument")?,
                     out,
                 });
-            (out_ref, block)
+            (Some(out_ref), block)
         }
         Expr::Block(exprs) => {
             let mut out = None;
@@ -140,7 +146,7 @@ pub fn gen_expr_ssa<'a, 'b>(
             let mut alt_frame = frame.new_child();
 
             let jump = JumpInstruction::BranchIfElseZero {
-                pred: test,
+                pred: test.context("cannot use a statement as the predicate of a conditional")?,
                 conseq: conseq_block.clone(),
                 alt: alt_block.clone(),
             };
@@ -154,21 +160,26 @@ pub fn gen_expr_ssa<'a, 'b>(
 
             let (alt_reg, alt_block) = gen_expr_ssa(alt, func, &mut alt_frame, alt_block)?;
 
-            let out @ VirtualRegisterLValue(out_ref) = func.new_reg();
-
-            let preds = vec![
+            let preds = [
                 (conseq_block.clone(), conseq_frame.symbol_table),
                 (alt_block.clone(), alt_frame.symbol_table),
             ];
 
             let mut phis = unified_block_phis(func, frame, &preds);
-            phis.push(Phi::new(
-                [
-                    (conseq_reg, Rc::downgrade(&conseq_block)),
-                    (alt_reg, Rc::downgrade(&alt_block)),
-                ],
-                out,
-            ));
+
+            let out_ref = if let (Some(conseq_reg), Some(alt_reg)) = (conseq_reg, alt_reg) {
+                let out @ VirtualRegisterLValue(out_ref) = func.new_reg();
+                phis.push(Phi::new(
+                    [
+                        (conseq_reg, Rc::downgrade(&conseq_block)),
+                        (alt_reg, Rc::downgrade(&alt_block)),
+                    ],
+                    out,
+                ));
+                Some(out_ref)
+            } else {
+                None
+            };
 
             let new_block = BlockRef::new_rc(func);
 
@@ -191,7 +202,32 @@ pub fn gen_expr_ssa<'a, 'b>(
                 .borrow_mut()
                 .instructions
                 .push(Instruction::LoadIntegerLiteral { value: *value, out });
-            (out_ref, block)
+            (Some(out_ref), block)
         }
+        Expr::Noop => (None, block),
+        Expr::Loop(body) => {
+            let inner_block = BlockRef::new_rc(func);
+            let mut inner_frame = frame.new_child();
+
+            // TODO: set up phis for the loop block
+            let (_, inner_block) = gen_expr_ssa(body, func, &mut inner_frame, inner_block)?;
+
+            (**inner_block).borrow_mut().exit = Some(JumpInstruction::UnconditionalJump {
+                dest: inner_block.clone(),
+            });
+
+            let preds = [(inner_block.clone(), inner_frame.symbol_table)];
+
+            // these phis are for the block after the loop
+            let phis = unified_block_phis(func, frame, &preds);
+
+            let new_block = BlockRef::new_rc(func);
+
+            (**new_block).borrow_mut().phis = phis.into_boxed_slice();
+            (**new_block).borrow_mut().preds = vec![Rc::downgrade(&inner_block)].into_boxed_slice();
+
+            (None, new_block)
+        }
+        Expr::Break => todo!(),
     })
 }

@@ -24,7 +24,10 @@ pub enum Expr {
         conseq: Box<Expr>,
         alt: Box<Expr>,
     },
+    Loop(Box<Expr>),
+    Break,
     IntegerLiteral(i64),
+    Noop,
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -81,8 +84,7 @@ fn analyze_if(operands: &[ParseExpr]) -> Result<Expr> {
         [pred, conseq] => Expr::IfElse {
             pred: Box::new(analyze_expr(pred)?),
             conseq: Box::new(analyze_expr(conseq)?),
-            // TODO(rahularya): need to allow if *statements* in non-expression context. Will fix when we add type checking
-            alt: Box::new(Expr::IntegerLiteral(0)),
+            alt: Box::new(Expr::Noop),
         },
         [pred, conseq, alt] => Expr::IfElse {
             pred: Box::new(analyze_expr(pred)?),
@@ -113,6 +115,18 @@ fn analyze_assign(operands: &[ParseExpr]) -> Result<Expr> {
     })
 }
 
+fn analyze_loop(operands: &[ParseExpr]) -> Result<Expr> {
+    Ok(Expr::Loop(Box::new(analyze(operands)?)))
+}
+
+fn analyze_break(operands: &[ParseExpr]) -> Result<Expr> {
+    if operands.is_empty() {
+        Ok(Expr::Break)
+    } else {
+        bail!("break expressions take no arguents")
+    }
+}
+
 fn analyze_expr(expr: &ParseExpr) -> Result<Expr> {
     Ok(match expr {
         ParseExpr::Integer(val) => Expr::IntegerLiteral(*val),
@@ -126,6 +140,8 @@ fn analyze_expr(expr: &ParseExpr) -> Result<Expr> {
                     "if" => analyze_if(operands)?,
                     "define" => analyze_define(operands)?,
                     "set" => analyze_assign(operands)?,
+                    "loop" => analyze_loop(operands)?,
+                    "break" => analyze_break(operands)?,
                     "begin" => analyze(operands)?,
                     _ => bail!("invalid operator in call expression"),
                 }
