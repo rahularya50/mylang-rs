@@ -1,6 +1,6 @@
 use anyhow::{bail, Context, Result};
 
-use crate::parser::ParseExpr;
+use crate::frontend::ParseExpr;
 
 #[derive(Debug)]
 pub enum Expr {
@@ -81,7 +81,7 @@ fn analyze_if(operands: &[ParseExpr]) -> Result<Expr> {
         [pred, conseq] => Expr::IfElse {
             pred: Box::new(analyze_expr(pred)?),
             conseq: Box::new(analyze_expr(conseq)?),
-            // TODO(rahularya) need to allow if *statements* in non-expression context. Will fix when we add type checking
+            // TODO(rahularya): need to allow if *statements* in non-expression context. Will fix when we add type checking
             alt: Box::new(Expr::IntegerLiteral(0)),
         },
         [pred, conseq, alt] => Expr::IfElse {

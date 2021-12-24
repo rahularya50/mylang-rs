@@ -1,14 +1,14 @@
-mod lexer;
-mod parser;
-mod semantics;
-mod ssa_gen;
-
 use std::fs::read_to_string;
 
 use anyhow::{Context, Result};
-use parser::parse;
-use semantics::analyze;
-use ssa_gen::gen_ssa;
+
+use crate::frontend::parse;
+use crate::semantics::analyze;
+use crate::ssa::gen_ssa;
+
+mod frontend;
+mod semantics;
+mod ssa;
 
 fn main() -> Result<()> {
     let contents = read_to_string("test.lang").context("unable to open source file")?;

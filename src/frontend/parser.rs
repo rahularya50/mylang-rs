@@ -3,7 +3,7 @@ use std::iter::Peekable;
 
 use anyhow::{bail, Context, Result};
 
-use crate::lexer::{tokenize, Token};
+use super::lexer::Token;
 
 #[derive(Debug)]
 pub enum ParseExpr {
@@ -33,7 +33,7 @@ impl Display for ParseExpr {
     }
 }
 
-fn read_expr(tokens: &mut Peekable<impl Iterator<Item = Token>>) -> Result<ParseExpr> {
+pub fn read_expr(tokens: &mut Peekable<impl Iterator<Item = Token>>) -> Result<ParseExpr> {
     match tokens.next().context("input ended unexpectedly")? {
         Token::LeftParen => {
             // reading tail
@@ -54,13 +54,4 @@ fn read_expr(tokens: &mut Peekable<impl Iterator<Item = Token>>) -> Result<Parse
         Token::Integer(val) => Ok(ParseExpr::Integer(val)),
         Token::Symbol(val) => Ok(ParseExpr::Symbol(val)),
     }
-}
-
-pub fn parse(stream: &mut impl Iterator<Item = char>) -> Result<Box<[ParseExpr]>> {
-    let mut tokens = tokenize(&mut stream.peekable())?.into_iter().peekable();
-    let mut out = vec![];
-    while tokens.peek().is_some() {
-        out.push(read_expr(&mut tokens)?);
-    }
-    Ok(out.into_boxed_slice())
 }
