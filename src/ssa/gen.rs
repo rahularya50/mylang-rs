@@ -41,6 +41,37 @@ impl<'a> Frame<'a> {
     }
 }
 
+fn unified_block_phis(
+    func: &mut Function,
+    parent_frame: &mut Frame,
+    preds: &[(Rc<BlockRef>, HashMap<String, VirtualRegister>)],
+) -> Vec<Phi> {
+    preds
+        .iter()
+        .flat_map(|(_, child_symbols)| child_symbols.keys())
+        .dedup()
+        .filter_map(|var| {
+            parent_frame.lookup(var).map(|parent_reg| {
+                let out @ VirtualRegisterLValue(out_ref) = func.new_reg();
+                parent_frame.assoc(var.to_string(), out_ref);
+                Phi::new(
+                    preds.iter().map(|(block, child_symbols)| {
+                        (
+                            if let Some(child_reg) = child_symbols.get(var) {
+                                *child_reg
+                            } else {
+                                parent_reg
+                            },
+                            Rc::downgrade(block),
+                        )
+                    }),
+                    out,
+                )
+            })
+        })
+        .collect()
+}
+
 pub fn gen_expr_ssa<'a, 'b>(
     expr: &Expr,
     func: &mut Function,
@@ -91,9 +122,9 @@ pub fn gen_expr_ssa<'a, 'b>(
         Expr::Block(exprs) => {
             let mut out = None;
             for expr in exprs.iter() {
-                let (out_tmp, block_tmp) = gen_expr_ssa(expr, func, frame, block)?;
+                let out_tmp;
+                (out_tmp, block) = gen_expr_ssa(expr, func, frame, block)?;
                 out = Some(out_tmp);
-                block = block_tmp;
             }
             (
                 out.context("expr blocks must have at least one expression")?,
@@ -125,45 +156,26 @@ pub fn gen_expr_ssa<'a, 'b>(
             let (alt_reg, alt_block) = gen_expr_ssa(alt, func, &mut alt_frame, alt_block)?;
 
             let out @ VirtualRegisterLValue(out_ref) = func.new_reg();
-            let mut phis = vec![Phi::new(
+
+            let preds = vec![
+                (conseq_block.clone(), conseq_frame.symbol_table),
+                (alt_block.clone(), alt_frame.symbol_table),
+            ];
+
+            let mut phis = unified_block_phis(func, frame, &preds);
+            phis.push(Phi::new(
                 [
                     (conseq_reg, Rc::downgrade(&conseq_block)),
                     (alt_reg, Rc::downgrade(&alt_block)),
                 ],
                 out,
-            )];
-
-            let conseq_frame = conseq_frame.symbol_table;
-            let alt_frame = alt_frame.symbol_table;
-
-            for var in empty()
-                .chain(conseq_frame.keys())
-                .chain(alt_frame.keys())
-                .dedup()
-            {
-                // verify that this var is available in parent environment
-                if let Some(parent_reg) = frame.lookup(var) {
-                    let out @ VirtualRegisterLValue(out_ref) = func.new_reg();
-                    phis.push(Phi::new(
-                        [(&conseq_frame, &conseq_block), (&alt_frame, &alt_block)].map(
-                            |(child_frame, block)| {
-                                (
-                                    if let Some(child_reg) = child_frame.get(var) {
-                                        *child_reg
-                                    } else {
-                                        parent_reg
-                                    },
-                                    Rc::downgrade(block),
-                                )
-                            },
-                        ),
-                        out,
-                    ));
-                    frame.assoc(var.to_string(), out_ref);
-                }
-            }
+            ));
 
             let new_block = BlockRef::new_rc(func);
+
+            (**new_block).borrow_mut().phis = phis.into_boxed_slice();
+            (**new_block).borrow_mut().preds =
+                vec![Rc::downgrade(&conseq_block), Rc::downgrade(&alt_block)].into_boxed_slice();
 
             (**conseq_block).borrow_mut().exit = Some(JumpInstruction::UnconditionalJump {
                 dest: new_block.clone(),
@@ -171,10 +183,6 @@ pub fn gen_expr_ssa<'a, 'b>(
             (**alt_block).borrow_mut().exit = Some(JumpInstruction::UnconditionalJump {
                 dest: new_block.clone(),
             });
-
-            (**new_block).borrow_mut().phis = phis.into_boxed_slice();
-            (**new_block).borrow_mut().preds =
-                vec![Rc::downgrade(&conseq_block), Rc::downgrade(&alt_block)].into_boxed_slice();
 
             (out_ref, new_block)
         }
