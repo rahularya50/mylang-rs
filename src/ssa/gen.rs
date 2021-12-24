@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::iter::empty;
 use std::rc::Rc;
 
 use anyhow::{bail, Context, Result};
