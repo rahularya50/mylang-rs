@@ -8,7 +8,7 @@ mod core_structs;
 mod gen;
 mod instructions;
 
-pub fn gen_ssa(expr: &Expr) -> Result<Function> {
+pub fn gen_ssa(expr: &mut Expr) -> Result<Function> {
     let mut func = Function::new();
     let mut frame = Frame::new();
     let start_block = func.start_block.clone();

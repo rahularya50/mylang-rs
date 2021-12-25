@@ -16,6 +16,10 @@ pub enum Instruction {
         value: i64,
         out: VirtualRegisterLValue,
     },
+    Move {
+        src: VirtualRegister,
+        out: VirtualRegisterLValue,
+    },
 }
 
 impl Display for Instruction {
@@ -31,6 +35,9 @@ impl Display for Instruction {
             }
             Instruction::LoadIntegerLiteral { value, out } => {
                 write!(f, "{out} = {value}")
+            }
+            Instruction::Move { src, out } => {
+                write!(f, "{out} = {src}")
             }
         }
     }

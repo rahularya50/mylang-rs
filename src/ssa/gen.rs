@@ -71,8 +71,39 @@ fn unified_block_phis(
         .collect()
 }
 
+fn find_loop_variables(expr: &mut Expr) -> Vec<String> {
+    let process = |children: &mut [&mut Expr]| {
+        children
+            .iter_mut()
+            .flat_map(|x| find_loop_variables(x))
+            .collect::<Vec<_>>()
+    };
+
+    match &mut *expr {
+        Expr::VarAccess(name) => return vec![name.to_string()],
+        Expr::Loop {
+            used_variables: Some(used_variables),
+            ..
+        } => used_variables.clone(),
+        Expr::Loop {
+            body,
+            used_variables,
+            ..
+        } => {
+            let out = process(&mut [body]);
+            *used_variables = Some(out.clone());
+            out
+        }
+        Expr::VarDecl { value, .. } | Expr::VarAssign { value, .. } => process(&mut [value]),
+        Expr::ArithOp { arg1, arg2, .. } => process(&mut [arg1, arg2]),
+        Expr::Block(exprs) => process(&mut exprs.iter_mut().collect::<Vec<_>>()),
+        Expr::IfElse { pred, conseq, alt } => process(&mut [pred, conseq, alt]),
+        Expr::Break | Expr::IntegerLiteral(_) | Expr::Noop => vec![],
+    }
+}
+
 pub fn gen_expr_ssa<'a, 'b>(
-    expr: &Expr,
+    expr: &mut Expr,
     func: &mut Function,
     frame: &'b mut Frame<'a>,
     mut block: Rc<BlockRef>,
@@ -126,7 +157,7 @@ pub fn gen_expr_ssa<'a, 'b>(
         }
         Expr::Block(exprs) => {
             let mut out = None;
-            for expr in exprs.iter() {
+            for expr in exprs.iter_mut() {
                 let out_tmp;
                 (out_tmp, block) = gen_expr_ssa(expr, func, frame, block)?;
                 out = Some(out_tmp);
@@ -205,26 +236,76 @@ pub fn gen_expr_ssa<'a, 'b>(
             (Some(out_ref), block)
         }
         Expr::Noop => (None, block),
-        Expr::Loop(body) => {
+        Expr::Loop {
+            body,
+            used_variables,
+        } => {
             let inner_block = BlockRef::new_rc(func);
             let mut inner_frame = frame.new_child();
 
-            // TODO: set up phis for the loop block
+            (**block).borrow_mut().exit = Some(JumpInstruction::UnconditionalJump {
+                dest: inner_block.clone(),
+            });
+
+            let loop_variables = find_loop_variables(body);
+            *used_variables = Some(loop_variables.clone());
+
+            let (loop_phis, loop_phi_variables) = loop_variables
+                .iter()
+                .filter_map(|var| {
+                    frame.lookup(var).map(|parent_reg| {
+                        // the parent frame contains this register, so we can safely optimistically phi it!
+                        let loop_start_reg @ VirtualRegisterLValue(loop_start_reg_ref) =
+                            func.new_reg();
+                        let loop_end_reg @ VirtualRegisterLValue(loop_end_reg_ref) = func.new_reg();
+                        inner_frame.assoc(var.to_string(), loop_start_reg_ref);
+                        (
+                            Phi::new(
+                                [
+                                    (parent_reg, Rc::downgrade(&block)),
+                                    (loop_end_reg_ref, Rc::downgrade(&inner_block)),
+                                ],
+                                loop_start_reg,
+                            ),
+                            (var, loop_start_reg_ref, loop_end_reg),
+                        )
+                    })
+                })
+                .unzip::<_, _, Vec<_>, Vec<_>>();
+
+            (**inner_block).borrow_mut().preds =
+                vec![Rc::downgrade(&block), Rc::downgrade(&inner_block)].into_boxed_slice();
+            (**inner_block).borrow_mut().phis = loop_phis.into_boxed_slice();
+
+            for (var, start_reg, _) in loop_phi_variables.iter() {
+                inner_frame.assoc(var.to_string(), *start_reg)
+            }
+
             let (_, inner_block) = gen_expr_ssa(body, func, &mut inner_frame, inner_block)?;
+
+            for (var, _, end_reg) in loop_phi_variables {
+                (**inner_block)
+                    .borrow_mut()
+                    .instructions
+                    .push(Instruction::Move {
+                        src: inner_frame.lookup(var).unwrap(),
+                        out: end_reg,
+                    })
+            }
 
             (**inner_block).borrow_mut().exit = Some(JumpInstruction::UnconditionalJump {
                 dest: inner_block.clone(),
             });
 
-            let preds = [(inner_block.clone(), inner_frame.symbol_table)];
+            let preds = [(block.clone(), frame.symbol_table.clone())];
 
-            // these phis are for the block after the loop
             let phis = unified_block_phis(func, frame, &preds);
 
             let new_block = BlockRef::new_rc(func);
 
             (**new_block).borrow_mut().phis = phis.into_boxed_slice();
-            (**new_block).borrow_mut().preds = vec![Rc::downgrade(&inner_block)].into_boxed_slice();
+            (**new_block).borrow_mut().preds =
+                vec![Rc::downgrade(&block), Rc::downgrade(&inner_block)].into_boxed_slice();
 
             (None, new_block)
         }

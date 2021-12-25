@@ -19,10 +19,10 @@ fn main() -> Result<()> {
     //     println!("{}", expr);
     // }
 
-    let func = analyze(&exprs)?;
+    let mut func = analyze(&exprs)?;
     // println!("{:#?}", func);
 
-    let ssa = gen_ssa(&func)?;
+    let ssa = gen_ssa(&mut func)?;
     println!("{}", ssa);
     // println!("{:#?}", ssa);
     // for block in ssa.blocks.iter() {
