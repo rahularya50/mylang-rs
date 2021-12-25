@@ -12,7 +12,7 @@ pub fn gen_ssa(expr: &mut Expr) -> Result<Function> {
     let mut func = Function::new();
     let mut frame = Frame::new();
     let start_block = func.start_block.clone();
-    gen_expr(expr, &mut func, &mut frame, start_block)?;
+    gen_expr(expr, &mut func, &mut frame, &mut vec![], start_block)?;
     // TODO: actually bring it into SSA form!
     Ok(func)
 }

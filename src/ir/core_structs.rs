@@ -1,6 +1,5 @@
 use std::cell::RefCell;
 use std::fmt::{self, Debug, Display, Formatter};
-use std::ops::Deref;
 use std::rc::{Rc, Weak};
 
 use itertools::Itertools;
@@ -11,13 +10,13 @@ use super::instructions::{Instruction, JumpInstruction};
 pub struct Function {
     reg_counter: u16,
     block_counter: u16,
-    pub start_block: Rc<BlockRef>,
-    pub blocks: Vec<Rc<BlockRef>>,
+    pub start_block: Rc<RefCell<Block>>,
+    pub blocks: Vec<Rc<RefCell<Block>>>,
 }
 
 impl Function {
     pub fn new() -> Self {
-        let start_block = Rc::new(BlockRef(RefCell::new(Block::new_with_index(0))));
+        let start_block = Rc::new(RefCell::new(Block::new_with_index(0)));
         Function {
             reg_counter: 0,
             block_counter: 0,
@@ -44,7 +43,7 @@ impl Function {
 impl Display for Function {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         for block in &self.blocks {
-            writeln!(f, "{}", (***block).borrow())?;
+            writeln!(f, "{}", block.borrow())?;
         }
         Ok(())
     }
@@ -65,6 +64,13 @@ impl Block {
             exit: None,
         }
     }
+
+    pub fn new_rc(func: &mut Function) -> Rc<RefCell<Self>> {
+        func.block_counter += 1;
+        let out = Rc::new(RefCell::new(Self::new_with_index(func.block_counter)));
+        func.blocks.push(out.clone());
+        out
+    }
 }
 
 impl Display for Block {
@@ -80,39 +86,10 @@ impl Display for Block {
     }
 }
 
-pub struct BlockRef(pub RefCell<Block>);
-
-impl Deref for BlockRef {
-    type Target = RefCell<Block>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl BlockRef {
-    pub fn new_rc(func: &mut Function) -> Rc<Self> {
-        func.block_counter += 1;
-        let out = Rc::new(Self(RefCell::new(Block::new_with_index(
-            func.block_counter,
-        ))));
-        func.blocks.push(out.clone());
-        out
-    }
-}
-
-impl Debug for BlockRef {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.debug_struct("BlockRef")
-            .field("debug_index", &(**self).borrow().debug_index)
-            .finish()
-    }
-}
-
 #[derive(Debug)]
 pub struct SSABlock {
     pub(super) debug_index: u16,
-    pub preds: Box<[Weak<BlockRef>]>,
+    pub preds: Box<[Weak<RefCell<Block>>]>,
     pub phis: Box<[Phi]>,
     pub instructions: Vec<Instruction>,
     pub exit: Option<JumpInstruction>,
@@ -140,13 +117,13 @@ impl Display for VirtualRegisterLValue {
 
 #[derive(Debug)]
 pub struct Phi {
-    pub srcs: Box<[(VirtualRegister, Weak<BlockRef>)]>,
+    pub srcs: Box<[(VirtualRegister, Weak<RefCell<Block>>)]>,
     pub dest: VirtualRegisterLValue,
 }
 
 impl Phi {
     pub fn new(
-        srcs: impl IntoIterator<Item = (VirtualRegister, Weak<BlockRef>)>,
+        srcs: impl IntoIterator<Item = (VirtualRegister, Weak<RefCell<Block>>)>,
         dest: VirtualRegisterLValue,
     ) -> Self {
         Phi {
@@ -168,7 +145,7 @@ impl Display for Phi {
                     format!(
                         "{} from block {}",
                         reg,
-                        (**(block.upgrade().unwrap())).borrow().debug_index
+                        (block.upgrade().unwrap()).borrow().debug_index
                     )
                 })
                 .join(", ")

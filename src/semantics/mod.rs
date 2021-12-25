@@ -26,6 +26,7 @@ pub enum Expr {
     },
     Loop(Box<Expr>),
     Break,
+    Continue,
     IntegerLiteral(i64),
     Noop,
 }
@@ -127,6 +128,14 @@ fn analyze_break(operands: &[ParseExpr]) -> Result<Expr> {
     }
 }
 
+fn analyze_continue(operands: &[ParseExpr]) -> Result<Expr> {
+    if operands.is_empty() {
+        Ok(Expr::Continue)
+    } else {
+        bail!("break expressions take no arguents")
+    }
+}
+
 fn analyze_expr(expr: &ParseExpr) -> Result<Expr> {
     Ok(match expr {
         ParseExpr::Integer(val) => Expr::IntegerLiteral(*val),
@@ -142,8 +151,9 @@ fn analyze_expr(expr: &ParseExpr) -> Result<Expr> {
                     "set" => analyze_assign(operands)?,
                     "loop" => analyze_loop(operands)?,
                     "break" => analyze_break(operands)?,
+                    "continue" => analyze_continue(operands)?,
                     "begin" => analyze(operands)?,
-                    _ => bail!("invalid operator in call expression"),
+                    _ => bail!("invalid operator in call expression: {}", operator),
                 }
             } else {
                 bail!("call expressions must have an operator")

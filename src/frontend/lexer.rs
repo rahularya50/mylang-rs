@@ -12,7 +12,7 @@ pub enum Token {
 pub fn tokenize(stream: &mut Peekable<impl Iterator<Item = char>>) -> Result<Vec<Token>> {
     let mut out = vec![];
 
-    let token_ends = "() ";
+    let token_ends = "()";
 
     loop {
         // single-char tokens
@@ -31,7 +31,7 @@ pub fn tokenize(stream: &mut Peekable<impl Iterator<Item = char>>) -> Result<Vec
             Some(d) if d.is_ascii() => {
                 let mut s = String::new();
                 while let Some(d) = stream.peek() {
-                    if token_ends.contains(*d) {
+                    if token_ends.contains(*d) || d.is_whitespace() {
                         break;
                     }
                     s.push(*d);

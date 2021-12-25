@@ -11,5 +11,10 @@
 (+ z 2)
 (if (+ 1 2) (set x 5))
 (define loopx 0)
-(loop (set loopx 1) (set x (+ 4 x)))
+(loop
+    (set loopx 1)
+    (set x (+ 4 x))
+    (if x (break) (continue))
+    (set x (if 1 2 3))
+)
 (+ x loopx)

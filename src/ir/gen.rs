@@ -1,9 +1,10 @@
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
 use anyhow::{bail, Context, Result};
 
-use super::core_structs::{BlockRef, Function, VirtualRegister};
+use super::core_structs::{Block, Function, VirtualRegister};
 use super::instructions::{Instruction, InstructionRHS, JumpInstruction};
 use crate::semantics::Expr;
 
@@ -39,18 +40,25 @@ impl<'a> Frame<'a> {
     }
 }
 
+pub struct LoopContext {
+    loop_start: Rc<RefCell<Block>>,
+    loop_break: Rc<RefCell<Block>>,
+}
+
 pub fn gen_expr<'a, 'b>(
     expr: &mut Expr,
     func: &mut Function,
     frame: &'b mut Frame<'a>,
-    mut block: Rc<BlockRef>,
-) -> Result<(Option<VirtualRegister>, Rc<BlockRef>)> {
+    loops: &mut Vec<LoopContext>,
+    mut block: Rc<RefCell<Block>>,
+) -> Result<(Option<VirtualRegister>, Rc<RefCell<Block>>)> {
     Ok(match expr {
         Expr::VarDecl { name, value } => {
             if frame.lookup(name).is_some() {
+                // this is a language-level requirement, not a limitation of the codegen
                 bail!("variable shadowing is not permitted")
             } else {
-                let (reg, block) = gen_expr(value, func, frame, block)?;
+                let (reg, block) = gen_expr(value, func, frame, loops, block)?;
                 frame.assoc(
                     name.to_string(),
                     reg.context("cannot use a statement as the RHS of a declaration")?,
@@ -66,8 +74,8 @@ pub fn gen_expr<'a, 'b>(
             let dst = frame
                 .lookup(name)
                 .context("cannot assign to undeclared variable")?;
-            let (src, block) = gen_expr(value, func, frame, block)?;
-            (**block).borrow_mut().instructions.push(Instruction::new(
+            let (src, block) = gen_expr(value, func, frame, loops, block)?;
+            block.borrow_mut().instructions.push(Instruction::new(
                 dst,
                 InstructionRHS::Move {
                     src: src.context("cannot use a statement as the RHS of an assignment")?,
@@ -80,10 +88,10 @@ pub fn gen_expr<'a, 'b>(
             arg1,
             arg2,
         } => {
-            let (arg1, block) = gen_expr(arg1, func, frame, block)?;
-            let (arg2, block) = gen_expr(arg2, func, frame, block)?;
+            let (arg1, block) = gen_expr(arg1, func, frame, loops, block)?;
+            let (arg2, block) = gen_expr(arg2, func, frame, loops, block)?;
             let out = func.new_reg();
-            (**block).borrow_mut().instructions.push(Instruction::new(
+            block.borrow_mut().instructions.push(Instruction::new(
                 out,
                 InstructionRHS::ArithmeticOperation {
                     operator: *operator,
@@ -97,7 +105,7 @@ pub fn gen_expr<'a, 'b>(
             let mut out = None;
             for expr in exprs.iter_mut() {
                 let out_tmp;
-                (out_tmp, block) = gen_expr(expr, func, frame, block)?;
+                (out_tmp, block) = gen_expr(expr, func, frame, loops, block)?;
                 out = Some(out_tmp);
             }
             (
@@ -106,12 +114,12 @@ pub fn gen_expr<'a, 'b>(
             )
         }
         Expr::IfElse { pred, conseq, alt } => {
-            let (test, block) = gen_expr(pred, func, frame, block)?;
+            let (test, block) = gen_expr(pred, func, frame, loops, block)?;
 
-            let conseq_block = BlockRef::new_rc(func);
+            let conseq_block = Block::new_rc(func);
             let mut conseq_frame = frame.new_child();
 
-            let alt_block = BlockRef::new_rc(func);
+            let alt_block = Block::new_rc(func);
             let mut alt_frame = frame.new_child();
 
             let jump = JumpInstruction::BranchIfElseZero {
@@ -120,23 +128,22 @@ pub fn gen_expr<'a, 'b>(
                 alt: alt_block.clone(),
             };
 
-            (**block).borrow_mut().exit = Some(jump);
+            block.borrow_mut().exit = Some(jump);
 
             let (conseq_reg, conseq_block) =
-                gen_expr(conseq, func, &mut conseq_frame, conseq_block)?;
-
-            let (alt_reg, alt_block) = gen_expr(alt, func, &mut alt_frame, alt_block)?;
+                gen_expr(conseq, func, &mut conseq_frame, loops, conseq_block)?;
+            let (alt_reg, alt_block) = gen_expr(alt, func, &mut alt_frame, loops, alt_block)?;
 
             let out = if let (Some(conseq_reg), Some(alt_reg)) = (conseq_reg, alt_reg) {
                 let out = func.new_reg();
-                (**conseq_block)
+                conseq_block
                     .borrow_mut()
                     .instructions
                     .push(Instruction::new(
                         out,
                         InstructionRHS::Move { src: conseq_reg },
                     ));
-                (**alt_block)
+                alt_block
                     .borrow_mut()
                     .instructions
                     .push(Instruction::new(out, InstructionRHS::Move { src: alt_reg }));
@@ -145,20 +152,18 @@ pub fn gen_expr<'a, 'b>(
                 None
             };
 
-            let new_block = BlockRef::new_rc(func);
-
-            (**conseq_block).borrow_mut().exit = Some(JumpInstruction::UnconditionalJump {
+            let new_block = Block::new_rc(func);
+            conseq_block.borrow_mut().exit = Some(JumpInstruction::UnconditionalJump {
                 dest: new_block.clone(),
             });
-            (**alt_block).borrow_mut().exit = Some(JumpInstruction::UnconditionalJump {
+            alt_block.borrow_mut().exit = Some(JumpInstruction::UnconditionalJump {
                 dest: new_block.clone(),
             });
-
             (out, new_block)
         }
         Expr::IntegerLiteral(value) => {
             let out = func.new_reg();
-            (**block).borrow_mut().instructions.push(Instruction::new(
+            block.borrow_mut().instructions.push(Instruction::new(
                 out,
                 InstructionRHS::LoadIntegerLiteral { value: *value },
             ));
@@ -166,22 +171,51 @@ pub fn gen_expr<'a, 'b>(
         }
         Expr::Noop => (None, block),
         Expr::Loop(body) => {
-            let inner_block = BlockRef::new_rc(func);
+            let loop_start_block = Block::new_rc(func);
             let mut inner_frame = frame.new_child();
 
-            (**block).borrow_mut().exit = Some(JumpInstruction::UnconditionalJump {
-                dest: inner_block.clone(),
+            block.borrow_mut().exit = Some(JumpInstruction::UnconditionalJump {
+                dest: loop_start_block.clone(),
             });
 
-            let (_, inner_block) = gen_expr(body, func, &mut inner_frame, inner_block)?;
+            let new_block = Block::new_rc(func);
 
-            (**inner_block).borrow_mut().exit = Some(JumpInstruction::UnconditionalJump {
-                dest: inner_block.clone(),
+            loops.push(LoopContext {
+                loop_start: loop_start_block.clone(),
+                loop_break: new_block.clone(),
             });
 
-            let new_block = BlockRef::new_rc(func);
+            let (_, loop_final_block) = gen_expr(
+                body,
+                func,
+                &mut inner_frame,
+                loops,
+                loop_start_block.clone(),
+            )?;
+
+            loops.pop().unwrap();
+
+            loop_final_block.borrow_mut().exit = Some(JumpInstruction::UnconditionalJump {
+                dest: loop_start_block,
+            });
+
             (None, new_block)
         }
-        Expr::Break => todo!(),
+        Expr::Break => {
+            let LoopContext { loop_break, .. } =
+                loops.last().context("cannot break outside a loop")?;
+            block.borrow_mut().exit = Some(JumpInstruction::UnconditionalJump {
+                dest: loop_break.clone(),
+            });
+            (None, Block::new_rc(func))
+        }
+        Expr::Continue => {
+            let LoopContext { loop_start, .. } =
+                loops.last().context("cannot continue outside a loop")?;
+            block.borrow_mut().exit = Some(JumpInstruction::UnconditionalJump {
+                dest: loop_start.clone(),
+            });
+            (None, Block::new_rc(func))
+        }
     })
 }
