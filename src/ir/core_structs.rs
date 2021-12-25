@@ -10,8 +10,8 @@ use super::instructions::{Instruction, JumpInstruction};
 pub struct Function {
     reg_counter: u16,
     block_counter: u16,
-    pub start_block: Rc<RefCell<Block>>,
-    pub blocks: Vec<Rc<RefCell<Block>>>,
+    pub start_block: BlockRef,
+    pub blocks: Vec<Weak<RefCell<Block>>>,
 }
 
 impl Function {
@@ -21,7 +21,7 @@ impl Function {
             reg_counter: 0,
             block_counter: 0,
             start_block: start_block.clone(),
-            blocks: vec![start_block],
+            blocks: vec![Rc::downgrade(&start_block)],
         }
     }
 
@@ -43,7 +43,9 @@ impl Function {
 impl Display for Function {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         for block in &self.blocks {
-            writeln!(f, "{}", block.borrow())?;
+            if let Some(block) = block.upgrade() {
+                writeln!(f, "{}", block.borrow())?
+            };
         }
         Ok(())
     }
@@ -53,22 +55,24 @@ impl Display for Function {
 pub struct Block {
     pub(super) debug_index: u16,
     pub instructions: Vec<Instruction>,
-    pub exit: Option<JumpInstruction>,
+    pub exit: JumpInstruction,
 }
+
+pub type BlockRef = Rc<RefCell<Block>>;
 
 impl Block {
     fn new_with_index(debug_index: u16) -> Self {
         Block {
             debug_index,
             instructions: vec![],
-            exit: None,
+            exit: JumpInstruction::Ret,
         }
     }
 
     pub fn new_rc(func: &mut Function) -> Rc<RefCell<Self>> {
         func.block_counter += 1;
         let out = Rc::new(RefCell::new(Self::new_with_index(func.block_counter)));
-        func.blocks.push(out.clone());
+        func.blocks.push(Rc::downgrade(&out));
         out
     }
 }
@@ -79,9 +83,7 @@ impl Display for Block {
         for inst in &self.instructions {
             writeln!(f, "{inst}")?;
         }
-        if let Some(exit) = &self.exit {
-            writeln!(f, "{exit}")?;
-        }
+        writeln!(f, "{}", self.exit)?;
         Ok(())
     }
 }

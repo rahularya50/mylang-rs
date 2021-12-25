@@ -1,10 +1,8 @@
-use std::cell::RefCell;
 use std::collections::HashMap;
-use std::rc::Rc;
 
 use anyhow::{bail, Context, Result};
 
-use super::core_structs::{Block, Function, VirtualRegister};
+use super::core_structs::{Block, BlockRef, Function, VirtualRegister};
 use super::instructions::{Instruction, InstructionRHS, JumpInstruction};
 use crate::semantics::Expr;
 
@@ -41,8 +39,8 @@ impl<'a> Frame<'a> {
 }
 
 pub struct LoopContext {
-    loop_start: Rc<RefCell<Block>>,
-    loop_break: Rc<RefCell<Block>>,
+    loop_start: BlockRef,
+    loop_break: BlockRef,
 }
 
 pub fn gen_expr<'a, 'b>(
@@ -50,8 +48,8 @@ pub fn gen_expr<'a, 'b>(
     func: &mut Function,
     frame: &'b mut Frame<'a>,
     loops: &mut Vec<LoopContext>,
-    mut block: Rc<RefCell<Block>>,
-) -> Result<(Option<VirtualRegister>, Rc<RefCell<Block>>)> {
+    mut block: BlockRef,
+) -> Result<(Option<VirtualRegister>, BlockRef)> {
     Ok(match expr {
         Expr::VarDecl { name, value } => {
             if frame.lookup(name).is_some() {
@@ -122,13 +120,11 @@ pub fn gen_expr<'a, 'b>(
             let alt_block = Block::new_rc(func);
             let mut alt_frame = frame.new_child();
 
-            let jump = JumpInstruction::BranchIfElseZero {
+            block.borrow_mut().exit = JumpInstruction::BranchIfElseZero {
                 pred: test.context("cannot use a statement as the predicate of a conditional")?,
                 conseq: conseq_block.clone(),
                 alt: alt_block.clone(),
             };
-
-            block.borrow_mut().exit = Some(jump);
 
             let (conseq_reg, conseq_block) =
                 gen_expr(conseq, func, &mut conseq_frame, loops, conseq_block)?;
@@ -153,12 +149,12 @@ pub fn gen_expr<'a, 'b>(
             };
 
             let new_block = Block::new_rc(func);
-            conseq_block.borrow_mut().exit = Some(JumpInstruction::UnconditionalJump {
+            conseq_block.borrow_mut().exit = JumpInstruction::UnconditionalJump {
                 dest: new_block.clone(),
-            });
-            alt_block.borrow_mut().exit = Some(JumpInstruction::UnconditionalJump {
+            };
+            alt_block.borrow_mut().exit = JumpInstruction::UnconditionalJump {
                 dest: new_block.clone(),
-            });
+            };
             (out, new_block)
         }
         Expr::IntegerLiteral(value) => {
@@ -174,9 +170,9 @@ pub fn gen_expr<'a, 'b>(
             let loop_start_block = Block::new_rc(func);
             let mut inner_frame = frame.new_child();
 
-            block.borrow_mut().exit = Some(JumpInstruction::UnconditionalJump {
+            block.borrow_mut().exit = JumpInstruction::UnconditionalJump {
                 dest: loop_start_block.clone(),
-            });
+            };
 
             let new_block = Block::new_rc(func);
 
@@ -195,26 +191,26 @@ pub fn gen_expr<'a, 'b>(
 
             loops.pop().unwrap();
 
-            loop_final_block.borrow_mut().exit = Some(JumpInstruction::UnconditionalJump {
+            loop_final_block.borrow_mut().exit = JumpInstruction::UnconditionalJump {
                 dest: loop_start_block,
-            });
+            };
 
             (None, new_block)
         }
         Expr::Break => {
             let LoopContext { loop_break, .. } =
                 loops.last().context("cannot break outside a loop")?;
-            block.borrow_mut().exit = Some(JumpInstruction::UnconditionalJump {
+            block.borrow_mut().exit = JumpInstruction::UnconditionalJump {
                 dest: loop_break.clone(),
-            });
+            };
             (None, Block::new_rc(func))
         }
         Expr::Continue => {
             let LoopContext { loop_start, .. } =
                 loops.last().context("cannot continue outside a loop")?;
-            block.borrow_mut().exit = Some(JumpInstruction::UnconditionalJump {
+            block.borrow_mut().exit = JumpInstruction::UnconditionalJump {
                 dest: loop_start.clone(),
-            });
+            };
             (None, Block::new_rc(func))
         }
     })

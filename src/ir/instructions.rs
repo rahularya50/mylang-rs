@@ -1,8 +1,6 @@
-use std::cell::RefCell;
 use std::fmt::{self, Debug, Display, Formatter};
-use std::rc::Rc;
 
-use super::core_structs::{Block, VirtualRegister, VirtualRegisterLValue};
+use super::core_structs::{BlockRef, VirtualRegister, VirtualRegisterLValue};
 use crate::semantics::Operator;
 
 #[derive(Debug)]
@@ -62,12 +60,25 @@ impl Display for Instruction {
 pub enum JumpInstruction {
     BranchIfElseZero {
         pred: VirtualRegister,
-        conseq: Rc<RefCell<Block>>,
-        alt: Rc<RefCell<Block>>,
+        conseq: BlockRef,
+        alt: BlockRef,
     },
     UnconditionalJump {
-        dest: Rc<RefCell<Block>>,
+        dest: BlockRef,
     },
+    Ret,
+}
+
+impl JumpInstruction {
+    pub fn dests(&self) -> Vec<BlockRef> {
+        match self {
+            JumpInstruction::BranchIfElseZero { conseq, alt, .. } => {
+                vec![conseq.clone(), alt.clone()]
+            }
+            JumpInstruction::UnconditionalJump { dest } => vec![dest.clone()],
+            JumpInstruction::Ret => vec![],
+        }
+    }
 }
 
 impl Display for JumpInstruction {
@@ -85,6 +96,7 @@ impl Display for JumpInstruction {
             JumpInstruction::UnconditionalJump { dest } => {
                 write!(f, "jumpto {}", dest.borrow().debug_index)
             }
+            JumpInstruction::Ret => write!(f, "ret"),
         }
     }
 }
