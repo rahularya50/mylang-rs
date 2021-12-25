@@ -5,39 +5,53 @@ use super::core_structs::{BlockRef, VirtualRegister, VirtualRegisterLValue};
 use crate::semantics::Operator;
 
 #[derive(Debug)]
-pub enum Instruction {
+pub enum InstructionRHS {
     ArithmeticOperation {
         operator: Operator,
         arg1: VirtualRegister,
         arg2: VirtualRegister,
-        out: VirtualRegisterLValue,
     },
     LoadIntegerLiteral {
         value: i64,
-        out: VirtualRegisterLValue,
     },
     Move {
         src: VirtualRegister,
-        out: VirtualRegisterLValue,
     },
+}
+
+#[derive(Debug)]
+pub struct Instruction {
+    pub lhs: VirtualRegister,
+    pub rhs: InstructionRHS,
+}
+
+impl Instruction {
+    pub fn new(lhs: VirtualRegister, rhs: InstructionRHS) -> Self {
+        Instruction { lhs, rhs }
+    }
+}
+
+pub struct SSAInstruction {
+    lhs: VirtualRegisterLValue,
+    rhs: InstructionRHS,
 }
 
 impl Display for Instruction {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match self {
-            Instruction::ArithmeticOperation {
+        write!(f, "{} = ", self.lhs)?;
+        match self.rhs {
+            InstructionRHS::ArithmeticOperation {
                 operator,
                 arg1,
                 arg2,
-                out,
             } => {
-                write!(f, "{out} = {arg1} {operator:?} {arg2}")
+                write!(f, "{arg1} {operator:?} {arg2}")
             }
-            Instruction::LoadIntegerLiteral { value, out } => {
-                write!(f, "{out} = {value}")
+            InstructionRHS::LoadIntegerLiteral { value } => {
+                write!(f, "{value}")
             }
-            Instruction::Move { src, out } => {
-                write!(f, "{out} = {src}")
+            InstructionRHS::Move { src } => {
+                write!(f, "{src}")
             }
         }
     }

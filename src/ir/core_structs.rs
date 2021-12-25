@@ -26,7 +26,14 @@ impl Function {
         }
     }
 
-    pub fn new_reg(&mut self) -> VirtualRegisterLValue {
+    pub fn new_reg(&mut self) -> VirtualRegister {
+        self.reg_counter += 1;
+        VirtualRegister {
+            index: self.reg_counter,
+        }
+    }
+
+    pub fn new_ssa_reg(&mut self) -> VirtualRegisterLValue {
         self.reg_counter += 1;
         VirtualRegisterLValue(VirtualRegister {
             index: self.reg_counter,
@@ -46,8 +53,6 @@ impl Display for Function {
 #[derive(Debug)]
 pub struct Block {
     pub(super) debug_index: u16,
-    pub preds: Box<[Weak<BlockRef>]>,
-    pub phis: Box<[Phi]>,
     pub instructions: Vec<Instruction>,
     pub exit: Option<JumpInstruction>,
 }
@@ -56,8 +61,6 @@ impl Block {
     fn new_with_index(debug_index: u16) -> Self {
         Block {
             debug_index,
-            preds: vec![].into_boxed_slice(),
-            phis: vec![].into_boxed_slice(),
             instructions: vec![],
             exit: None,
         }
@@ -66,19 +69,7 @@ impl Block {
 
 impl Display for Block {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "block {} (preds=", self.debug_index)?;
-        write!(
-            f,
-            "{}",
-            self.preds
-                .iter()
-                .map(|pred| (**pred.upgrade().unwrap()).borrow().debug_index)
-                .join(",")
-        )?;
-        writeln!(f, ")")?;
-        for phi in self.phis.iter() {
-            writeln!(f, "{phi}")?;
-        }
+        writeln!(f, "block {}", self.debug_index)?;
         for inst in &self.instructions {
             writeln!(f, "{inst}")?;
         }
@@ -116,6 +107,15 @@ impl Debug for BlockRef {
             .field("debug_index", &(**self).borrow().debug_index)
             .finish()
     }
+}
+
+#[derive(Debug)]
+pub struct SSABlock {
+    pub(super) debug_index: u16,
+    pub preds: Box<[Weak<BlockRef>]>,
+    pub phis: Box<[Phi]>,
+    pub instructions: Vec<Instruction>,
+    pub exit: Option<JumpInstruction>,
 }
 
 #[derive(Debug, Copy, Clone)]

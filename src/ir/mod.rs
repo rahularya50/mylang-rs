@@ -1,7 +1,7 @@
 use anyhow::Result;
 
 use self::core_structs::Function;
-use self::gen::{gen_expr_ssa, Frame};
+use self::gen::{gen_expr, Frame};
 use crate::semantics::Expr;
 
 mod core_structs;
@@ -12,6 +12,7 @@ pub fn gen_ssa(expr: &mut Expr) -> Result<Function> {
     let mut func = Function::new();
     let mut frame = Frame::new();
     let start_block = func.start_block.clone();
-    gen_expr_ssa(expr, &mut func, &mut frame, start_block)?;
+    gen_expr(expr, &mut func, &mut frame, start_block)?;
+    // TODO: actually bring it into SSA form!
     Ok(func)
 }

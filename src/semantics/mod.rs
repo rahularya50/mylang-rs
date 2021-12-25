@@ -24,11 +24,7 @@ pub enum Expr {
         conseq: Box<Expr>,
         alt: Box<Expr>,
     },
-    Loop {
-        body: Box<Expr>,
-        // populated by SSA generator when setting up loop phi functions
-        used_variables: Option<Vec<String>>,
-    },
+    Loop(Box<Expr>),
     Break,
     IntegerLiteral(i64),
     Noop,
@@ -120,10 +116,7 @@ fn analyze_assign(operands: &[ParseExpr]) -> Result<Expr> {
 }
 
 fn analyze_loop(operands: &[ParseExpr]) -> Result<Expr> {
-    Ok(Expr::Loop {
-        body: Box::new(analyze(operands)?),
-        used_variables: None,
-    })
+    Ok(Expr::Loop(Box::new(analyze(operands)?)))
 }
 
 fn analyze_break(operands: &[ParseExpr]) -> Result<Expr> {
