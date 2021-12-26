@@ -12,7 +12,7 @@ pub struct LoopContext {
 
 pub fn gen_expr<'a, 'b>(
     expr: &mut Expr,
-    func: &mut Function,
+    func: &mut Function<VirtualVariable, Block>,
     frame: &'b mut Frame<'a, String, VirtualVariable>,
     loops: &mut Vec<LoopContext>,
     mut block: BlockRef,
@@ -55,7 +55,7 @@ pub fn gen_expr<'a, 'b>(
         } => {
             let (arg1, block) = gen_expr(arg1, func, frame, loops, block)?;
             let (arg2, block) = gen_expr(arg2, func, frame, loops, block)?;
-            let out = func.new_var();
+            let out = func.new_reg();
             block.borrow_mut().instructions.push(Instruction::new(
                 out,
                 InstructionRHS::ArithmeticOperation {
@@ -81,10 +81,10 @@ pub fn gen_expr<'a, 'b>(
         Expr::IfElse { pred, conseq, alt } => {
             let (test, block) = gen_expr(pred, func, frame, loops, block)?;
 
-            let conseq_block = Block::new_rc(func);
+            let conseq_block = func.new_block();
             let mut conseq_frame = frame.new_child();
 
-            let alt_block = Block::new_rc(func);
+            let alt_block = func.new_block();
             let mut alt_frame = frame.new_child();
 
             block.borrow_mut().exit = JumpInstruction::BranchIfElseZero {
@@ -98,7 +98,7 @@ pub fn gen_expr<'a, 'b>(
             let (alt_reg, alt_block) = gen_expr(alt, func, &mut alt_frame, loops, alt_block)?;
 
             let out = if let (Some(conseq_reg), Some(alt_reg)) = (conseq_reg, alt_reg) {
-                let out = func.new_var();
+                let out = func.new_reg();
                 conseq_block
                     .borrow_mut()
                     .instructions
@@ -115,7 +115,7 @@ pub fn gen_expr<'a, 'b>(
                 None
             };
 
-            let new_block = Block::new_rc(func);
+            let new_block = func.new_block();
             conseq_block.borrow_mut().exit = JumpInstruction::UnconditionalJump {
                 dest: new_block.clone(),
             };
@@ -125,7 +125,7 @@ pub fn gen_expr<'a, 'b>(
             (out, new_block)
         }
         Expr::IntegerLiteral(value) => {
-            let out = func.new_var();
+            let out = func.new_reg();
             block.borrow_mut().instructions.push(Instruction::new(
                 out,
                 InstructionRHS::LoadIntegerLiteral { value: *value },
@@ -134,14 +134,14 @@ pub fn gen_expr<'a, 'b>(
         }
         Expr::Noop => (None, block),
         Expr::Loop(body) => {
-            let loop_start_block = Block::new_rc(func);
+            let loop_start_block = func.new_block();
             let mut inner_frame = frame.new_child();
 
             block.borrow_mut().exit = JumpInstruction::UnconditionalJump {
                 dest: loop_start_block.clone(),
             };
 
-            let new_block = Block::new_rc(func);
+            let new_block = func.new_block();
 
             loops.push(LoopContext {
                 loop_start: loop_start_block.clone(),
@@ -170,7 +170,7 @@ pub fn gen_expr<'a, 'b>(
             block.borrow_mut().exit = JumpInstruction::UnconditionalJump {
                 dest: loop_break.clone(),
             };
-            (None, Block::new_rc(func))
+            (None, func.new_block())
         }
         Expr::Continue => {
             let LoopContext { loop_start, .. } =
@@ -178,7 +178,7 @@ pub fn gen_expr<'a, 'b>(
             block.borrow_mut().exit = JumpInstruction::UnconditionalJump {
                 dest: loop_start.clone(),
             };
-            (None, Block::new_rc(func))
+            (None, func.new_block())
         }
     })
 }

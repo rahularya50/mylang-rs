@@ -1,10 +1,12 @@
-
+use std::cell::RefCell;
+use std::collections::HashMap;
 use std::fmt::{self, Debug, Display, Formatter};
 use std::hash::Hash;
+use std::rc::Rc;
 
-use super::structs::{BlockRef, VirtualVariable};
+use super::structs::{BlockRef, BlockWithDebugIndex, RegisterLValue};
 use crate::semantics::Operator;
-use crate::utils::Frame;
+use crate::utils::{Frame, RcEquality};
 
 #[derive(Debug)]
 pub enum InstructionRHS<RegType> {
@@ -47,18 +49,21 @@ impl<RegType: Eq + Hash + Copy> InstructionRHS<RegType> {
 }
 
 #[derive(Debug)]
-pub struct Instruction {
-    pub lhs: VirtualVariable,
-    pub rhs: InstructionRHS<VirtualVariable>,
+pub struct Instruction<LValue: RegisterLValue> {
+    pub lhs: LValue,
+    pub rhs: InstructionRHS<LValue::RValue>,
 }
 
-impl Instruction {
-    pub fn new(lhs: VirtualVariable, rhs: InstructionRHS<VirtualVariable>) -> Self {
+impl<LValue: RegisterLValue> Instruction<LValue> {
+    pub fn new(lhs: LValue, rhs: InstructionRHS<LValue::RValue>) -> Self {
         Instruction { lhs, rhs }
     }
 }
 
-impl Display for Instruction {
+impl<LValue: RegisterLValue + Display> Display for Instruction<LValue>
+where
+    LValue::RValue: Display,
+{
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{} = ", self.lhs)?;
         match &self.rhs {
@@ -80,20 +85,20 @@ impl Display for Instruction {
 }
 
 #[derive(Debug)]
-pub enum JumpInstruction<RegType> {
+pub enum JumpInstruction<RegType, BlockType> {
     BranchIfElseZero {
         pred: RegType,
-        conseq: BlockRef,
-        alt: BlockRef,
+        conseq: Rc<RefCell<BlockType>>,
+        alt: Rc<RefCell<BlockType>>,
     },
     UnconditionalJump {
-        dest: BlockRef,
+        dest: Rc<RefCell<BlockType>>,
     },
     Ret,
 }
 
-impl<RegType> JumpInstruction<RegType> {
-    pub fn dests(&self) -> Vec<BlockRef> {
+impl<RegType, BlockType> JumpInstruction<RegType, BlockType> {
+    pub fn dests(&self) -> Vec<Rc<RefCell<BlockType>>> {
         match self {
             JumpInstruction::BranchIfElseZero { conseq, alt, .. } => {
                 vec![conseq.clone(), alt.clone()]
@@ -102,9 +107,34 @@ impl<RegType> JumpInstruction<RegType> {
             JumpInstruction::Ret => vec![],
         }
     }
+
+    pub fn replace<NewRegType: Copy, NewBlockType>(
+        &self,
+        frame: &Frame<RegType, NewRegType>,
+        block_lookup: &HashMap<RcEquality<Rc<RefCell<BlockType>>>, Rc<RefCell<NewBlockType>>>,
+    ) -> Option<JumpInstruction<NewRegType, NewBlockType>>
+    where
+        RegType: Hash + Eq,
+    {
+        Some(match self {
+            JumpInstruction::BranchIfElseZero { pred, conseq, alt } => {
+                JumpInstruction::BranchIfElseZero {
+                    pred: frame.lookup(pred)?,
+                    conseq: block_lookup.get(&conseq.clone().into())?.clone(),
+                    alt: block_lookup.get(&alt.clone().into())?.clone(),
+                }
+            }
+            JumpInstruction::UnconditionalJump { dest } => JumpInstruction::UnconditionalJump {
+                dest: block_lookup.get(&dest.clone().into())?.clone(),
+            },
+            JumpInstruction::Ret => JumpInstruction::Ret,
+        })
+    }
 }
 
-impl<RegType: Display> Display for JumpInstruction<RegType> {
+impl<RegType: Display, BlockType: BlockWithDebugIndex> Display
+    for JumpInstruction<RegType, BlockType>
+{
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             JumpInstruction::BranchIfElseZero { pred, conseq, alt } => {
@@ -112,12 +142,12 @@ impl<RegType: Display> Display for JumpInstruction<RegType> {
                     f,
                     "if {}==0 branchto {} else {}",
                     pred,
-                    conseq.borrow().debug_index,
-                    alt.borrow().debug_index
+                    conseq.borrow().get_debug_index(),
+                    alt.borrow().get_debug_index(),
                 )
             }
             JumpInstruction::UnconditionalJump { dest } => {
-                write!(f, "jumpto {}", dest.borrow().debug_index)
+                write!(f, "jumpto {}", dest.borrow().get_debug_index())
             }
             JumpInstruction::Ret => write!(f, "ret"),
         }

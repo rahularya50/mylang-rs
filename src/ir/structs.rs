@@ -1,5 +1,6 @@
 use std::cell::RefCell;
 use std::fmt::{self, Debug, Display, Formatter};
+use std::marker::PhantomData;
 use std::rc::{Rc, Weak};
 
 use itertools::Itertools;
@@ -7,42 +8,42 @@ use itertools::Itertools;
 use super::instructions::{Instruction, JumpInstruction};
 
 #[derive(Debug)]
-pub struct Function {
-    var_counter: u16,
+pub struct Function<RegType, BlockType> {
     reg_counter: u16,
     block_counter: u16,
-    pub start_block: BlockRef,
-    pub blocks: Vec<Weak<RefCell<Block>>>,
+    pub start_block: Rc<RefCell<BlockType>>,
+    pub blocks: Vec<Weak<RefCell<BlockType>>>,
+    _reg: PhantomData<RegType>,
 }
 
-impl Function {
+impl<RegType, BlockType: BlockWithDebugIndex> Function<RegType, BlockType> {
     pub fn new() -> Self {
-        let start_block = Rc::new(RefCell::new(Block::new_with_index(0)));
+        let start_block = Rc::new(RefCell::new(BlockType::new_with_index(0)));
         Function {
-            var_counter: 0,
             reg_counter: 0,
             block_counter: 0,
             start_block: start_block.clone(),
             blocks: vec![Rc::downgrade(&start_block)],
+            _reg: PhantomData,
         }
     }
 
-    pub fn new_var(&mut self) -> VirtualVariable {
-        self.var_counter += 1;
-        VirtualVariable {
-            index: self.var_counter,
-        }
-    }
-
-    pub fn new_reg(&mut self) -> VirtualRegisterLValue {
-        self.reg_counter += 1;
-        VirtualRegisterLValue(VirtualRegister {
-            index: self.reg_counter,
-        })
+    pub fn new_block(&mut self) -> Rc<RefCell<BlockType>> {
+        self.block_counter += 1;
+        let out = Rc::new(RefCell::new(BlockType::new_with_index(self.block_counter)));
+        self.blocks.push(Rc::downgrade(&out));
+        out
     }
 }
 
-impl Display for Function {
+impl<RegType: RegisterLValue, BlockType> Function<RegType, BlockType> {
+    pub fn new_reg(&mut self) -> RegType {
+        self.reg_counter += 1;
+        RegType::new(self.reg_counter)
+    }
+}
+
+impl<RegType, BlockType: Display> Display for Function<RegType, BlockType> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         for block in &self.blocks {
             if let Some(block) = block.upgrade() {
@@ -53,16 +54,26 @@ impl Display for Function {
     }
 }
 
+pub trait BlockWithDebugIndex {
+    fn new_with_index(debug_index: u16) -> Self;
+    fn get_debug_index(&self) -> u16;
+}
+
+pub trait RegisterLValue {
+    type RValue;
+    fn new(index: u16) -> Self;
+}
+
 #[derive(Debug)]
 pub struct Block {
     pub(super) debug_index: u16,
-    pub instructions: Vec<Instruction>,
-    pub exit: JumpInstruction<VirtualVariable>,
+    pub instructions: Vec<Instruction<VirtualVariable>>,
+    pub exit: JumpInstruction<VirtualVariable, Block>,
 }
 
 pub type BlockRef = Rc<RefCell<Block>>;
 
-impl Block {
+impl BlockWithDebugIndex for Block {
     fn new_with_index(debug_index: u16) -> Self {
         Block {
             debug_index,
@@ -71,11 +82,8 @@ impl Block {
         }
     }
 
-    pub fn new_rc(func: &mut Function) -> Rc<RefCell<Self>> {
-        func.block_counter += 1;
-        let out = Rc::new(RefCell::new(Self::new_with_index(func.block_counter)));
-        func.blocks.push(Rc::downgrade(&out));
-        out
+    fn get_debug_index(&self) -> u16 {
+        self.debug_index
     }
 }
 
@@ -93,26 +101,55 @@ impl Display for Block {
 #[derive(Debug)]
 pub struct SSABlock {
     pub(super) debug_index: u16,
-    pub preds: Box<[Weak<RefCell<Block>>]>,
-    pub phis: Box<[Phi]>,
-    pub instructions: Vec<Instruction>,
-    pub exit: Option<JumpInstruction<VirtualRegister>>,
+    pub preds: Vec<Weak<RefCell<Block>>>,
+    pub phis: Vec<Phi>,
+    pub instructions: Vec<Instruction<VirtualRegisterLValue>>,
+    pub exit: JumpInstruction<VirtualRegister, SSABlock>,
 }
 
-#[derive(Debug, Eq, PartialEq, Hash, Copy, Clone)]
-pub struct VirtualRegister {
-    index: u16,
+impl BlockWithDebugIndex for SSABlock {
+    fn new_with_index(debug_index: u16) -> Self {
+        SSABlock {
+            debug_index,
+            preds: vec![],
+            phis: vec![],
+            instructions: vec![],
+            exit: JumpInstruction::Ret,
+        }
+    }
+
+    fn get_debug_index(&self) -> u16 {
+        self.debug_index
+    }
 }
 
-impl Display for VirtualRegister {
+impl Display for SSABlock {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "var{}", self.index)
+        writeln!(
+            f,
+            "block {} ({})",
+            self.debug_index,
+            self.phis.iter().join(",")
+        )?;
+        for inst in &self.instructions {
+            writeln!(f, "{inst}")?;
+        }
+        writeln!(f, "{}", self.exit)?;
+        Ok(())
     }
 }
 
 #[derive(Debug, Eq, PartialEq, Hash, Copy, Clone)]
 pub struct VirtualVariable {
     index: u16,
+}
+
+impl RegisterLValue for VirtualVariable {
+    type RValue = VirtualVariable;
+
+    fn new(index: u16) -> Self {
+        VirtualVariable { index }
+    }
 }
 
 impl Display for VirtualVariable {
@@ -122,7 +159,26 @@ impl Display for VirtualVariable {
 }
 
 #[derive(Debug, Eq, PartialEq, Hash, Copy, Clone)]
+pub struct VirtualRegister {
+    index: u16,
+}
+
+impl Display for VirtualRegister {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "%{}", self.index)
+    }
+}
+
+#[derive(Debug, Eq, PartialEq, Hash)]
 pub struct VirtualRegisterLValue(pub VirtualRegister);
+
+impl RegisterLValue for VirtualRegisterLValue {
+    type RValue = VirtualRegister;
+
+    fn new(index: u16) -> Self {
+        VirtualRegisterLValue(VirtualRegister { index })
+    }
+}
 
 impl Display for VirtualRegisterLValue {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
