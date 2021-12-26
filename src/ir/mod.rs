@@ -4,11 +4,12 @@ use anyhow::Result;
 use itertools::Itertools;
 
 use self::dominance::{find_immediate_dominators, sort_blocks_postorder};
-use self::gen::{gen_expr, Frame};
+use self::gen::gen_expr;
 use self::structs::Function;
 use crate::ir::dominance::{dominance_frontiers, find_immediately_dominated};
 use crate::ir::ssa_transform::{defining_blocks_for_variables, ssa_phis};
 use crate::semantics::Expr;
+use crate::utils::Frame;
 
 mod dominance;
 mod gen;
@@ -31,7 +32,7 @@ pub fn gen_ssa(expr: &mut Expr) -> Result<Function> {
     let (sorted_blocks, index_lookup, predecessors) = sort_blocks_postorder(start_block.clone());
     let dominators =
         find_immediate_dominators(start_block, &sorted_blocks, &index_lookup, &predecessors);
-    let dominated = find_immediately_dominated(&sorted_blocks, &dominators);
+    let _dominated = find_immediately_dominated(&sorted_blocks, &dominators);
     let frontiers = dominance_frontiers(&sorted_blocks, &predecessors, &dominators);
 
     let variable_defns = defining_blocks_for_variables(&sorted_blocks);

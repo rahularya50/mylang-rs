@@ -1,42 +1,9 @@
-use std::collections::HashMap;
-
 use anyhow::{bail, Context, Result};
 
-use super::structs::{Block, BlockRef, Function, VirtualVariable};
 use super::instructions::{Instruction, InstructionRHS, JumpInstruction};
+use super::structs::{Block, BlockRef, Function, VirtualVariable};
 use crate::semantics::Expr;
-
-pub struct Frame<'a> {
-    symbol_table: HashMap<String, VirtualVariable>,
-    parent: Option<&'a Frame<'a>>,
-}
-
-impl<'a> Frame<'a> {
-    pub fn new() -> Self {
-        Self {
-            symbol_table: HashMap::new(),
-            parent: None,
-        }
-    }
-
-    fn new_child(&'a self) -> Frame {
-        Self {
-            symbol_table: HashMap::new(),
-            parent: Some(self),
-        }
-    }
-
-    fn lookup(&self, name: &str) -> Option<VirtualVariable> {
-        self.symbol_table
-            .get(name)
-            .copied()
-            .or_else(|| self.parent.and_then(|p| p.lookup(name)))
-    }
-
-    fn assoc(&mut self, name: String, reg: VirtualVariable) {
-        self.symbol_table.insert(name, reg);
-    }
-}
+use crate::utils::Frame;
 
 pub struct LoopContext {
     loop_start: BlockRef,
@@ -46,13 +13,13 @@ pub struct LoopContext {
 pub fn gen_expr<'a, 'b>(
     expr: &mut Expr,
     func: &mut Function,
-    frame: &'b mut Frame<'a>,
+    frame: &'b mut Frame<'a, String, VirtualVariable>,
     loops: &mut Vec<LoopContext>,
     mut block: BlockRef,
 ) -> Result<(Option<VirtualVariable>, BlockRef)> {
     Ok(match expr {
         Expr::VarDecl { name, value } => {
-            if frame.lookup(name).is_some() {
+            if frame.lookup(&name).is_some() {
                 // this is a language-level requirement, not a limitation of the codegen
                 bail!("variable shadowing is not permitted")
             } else {

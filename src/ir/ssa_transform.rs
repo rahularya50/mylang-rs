@@ -2,9 +2,9 @@ use std::collections::{HashMap, HashSet};
 
 use itertools::Itertools;
 
-use super::structs::{BlockRef, Function, Phi, VirtualVariable};
 use super::dominance::BlockDataLookup;
-use crate::utils::RcEquality;
+use super::structs::{BlockRef, Function, Phi, VirtualRegister, VirtualVariable};
+use crate::utils::{Frame, RcEquality};
 
 pub fn defining_blocks_for_variables(
     blocks: &[BlockRef],
@@ -52,3 +52,12 @@ pub fn ssa_phis(
     out
 }
 
+pub fn gen_ssa_blocks(
+    start_block: BlockRef,
+    _dominated: &BlockDataLookup<Vec<BlockRef>>,
+    frame: Frame<VirtualVariable, VirtualRegister>,
+) {
+    for inst in start_block.borrow().instructions.iter() {
+        inst.rhs.replace_regs(&frame);
+    }
+}

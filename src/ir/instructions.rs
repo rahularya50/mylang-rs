@@ -1,7 +1,10 @@
+
 use std::fmt::{self, Debug, Display, Formatter};
+use std::hash::Hash;
 
 use super::structs::{BlockRef, VirtualVariable};
 use crate::semantics::Operator;
+use crate::utils::Frame;
 
 #[derive(Debug)]
 pub enum InstructionRHS<RegType> {
@@ -16,6 +19,31 @@ pub enum InstructionRHS<RegType> {
     Move {
         src: RegType,
     },
+}
+
+impl<RegType: Eq + Hash + Copy> InstructionRHS<RegType> {
+    pub fn replace_regs<NewRegType: Copy>(
+        &self,
+        frame: &Frame<RegType, NewRegType>,
+    ) -> Option<InstructionRHS<NewRegType>> {
+        Some(match *self {
+            InstructionRHS::ArithmeticOperation {
+                operator,
+                arg1,
+                arg2,
+            } => InstructionRHS::ArithmeticOperation {
+                operator,
+                arg1: frame.lookup(&arg1)?,
+                arg2: frame.lookup(&arg2)?,
+            },
+            InstructionRHS::LoadIntegerLiteral { value } => {
+                InstructionRHS::LoadIntegerLiteral { value }
+            }
+            InstructionRHS::Move { src } => InstructionRHS::Move {
+                src: frame.lookup(&src)?,
+            },
+        })
+    }
 }
 
 #[derive(Debug)]

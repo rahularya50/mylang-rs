@@ -136,18 +136,6 @@ pub struct Phi {
     pub dest: VirtualRegisterLValue,
 }
 
-impl Phi {
-    pub fn new(
-        srcs: impl IntoIterator<Item = (VirtualRegister, Weak<RefCell<Block>>)>,
-        dest: VirtualRegisterLValue,
-    ) -> Self {
-        Phi {
-            srcs: srcs.into_iter().collect(),
-            dest,
-        }
-    }
-}
-
 impl Display for Phi {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(
