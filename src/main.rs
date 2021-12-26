@@ -23,7 +23,7 @@ fn main() -> Result<()> {
     let mut func = analyze(&exprs)?;
     // println!("{:#?}", func);
 
-    let ssa = gen_ssa(&mut func)?;
+    let _ssa = gen_ssa(&mut func)?;
     // println!("{}", ssa);
     // println!("{:#?}", ssa);
     // for block in ssa.blocks.iter() {

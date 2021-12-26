@@ -4,7 +4,7 @@ use std::rc::Rc;
 // https://stackoverflow.com/questions/33847537/how-do-i-make-a-pointer-hashable
 
 #[derive(Debug)]
-pub struct RcEquality<T>(T);
+pub struct RcEquality<T>(pub T);
 
 impl<T> Hash for RcEquality<Rc<T>> {
     fn hash<H>(&self, state: &mut H)

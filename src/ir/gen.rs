@@ -2,12 +2,12 @@ use std::collections::HashMap;
 
 use anyhow::{bail, Context, Result};
 
-use super::core_structs::{Block, BlockRef, Function, VirtualRegister};
+use super::structs::{Block, BlockRef, Function, VirtualVariable};
 use super::instructions::{Instruction, InstructionRHS, JumpInstruction};
 use crate::semantics::Expr;
 
 pub struct Frame<'a> {
-    symbol_table: HashMap<String, VirtualRegister>,
+    symbol_table: HashMap<String, VirtualVariable>,
     parent: Option<&'a Frame<'a>>,
 }
 
@@ -26,14 +26,14 @@ impl<'a> Frame<'a> {
         }
     }
 
-    fn lookup(&self, name: &str) -> Option<VirtualRegister> {
+    fn lookup(&self, name: &str) -> Option<VirtualVariable> {
         self.symbol_table
             .get(name)
             .copied()
             .or_else(|| self.parent.and_then(|p| p.lookup(name)))
     }
 
-    fn assoc(&mut self, name: String, reg: VirtualRegister) {
+    fn assoc(&mut self, name: String, reg: VirtualVariable) {
         self.symbol_table.insert(name, reg);
     }
 }
@@ -49,7 +49,7 @@ pub fn gen_expr<'a, 'b>(
     frame: &'b mut Frame<'a>,
     loops: &mut Vec<LoopContext>,
     mut block: BlockRef,
-) -> Result<(Option<VirtualRegister>, BlockRef)> {
+) -> Result<(Option<VirtualVariable>, BlockRef)> {
     Ok(match expr {
         Expr::VarDecl { name, value } => {
             if frame.lookup(name).is_some() {
@@ -88,7 +88,7 @@ pub fn gen_expr<'a, 'b>(
         } => {
             let (arg1, block) = gen_expr(arg1, func, frame, loops, block)?;
             let (arg2, block) = gen_expr(arg2, func, frame, loops, block)?;
-            let out = func.new_reg();
+            let out = func.new_var();
             block.borrow_mut().instructions.push(Instruction::new(
                 out,
                 InstructionRHS::ArithmeticOperation {
@@ -131,7 +131,7 @@ pub fn gen_expr<'a, 'b>(
             let (alt_reg, alt_block) = gen_expr(alt, func, &mut alt_frame, loops, alt_block)?;
 
             let out = if let (Some(conseq_reg), Some(alt_reg)) = (conseq_reg, alt_reg) {
-                let out = func.new_reg();
+                let out = func.new_var();
                 conseq_block
                     .borrow_mut()
                     .instructions
@@ -158,7 +158,7 @@ pub fn gen_expr<'a, 'b>(
             (out, new_block)
         }
         Expr::IntegerLiteral(value) => {
-            let out = func.new_reg();
+            let out = func.new_var();
             block.borrow_mut().instructions.push(Instruction::new(
                 out,
                 InstructionRHS::LoadIntegerLiteral { value: *value },

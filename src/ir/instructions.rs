@@ -1,44 +1,39 @@
 use std::fmt::{self, Debug, Display, Formatter};
 
-use super::core_structs::{BlockRef, VirtualRegister, VirtualRegisterLValue};
+use super::structs::{BlockRef, VirtualVariable};
 use crate::semantics::Operator;
 
 #[derive(Debug)]
-pub enum InstructionRHS {
+pub enum InstructionRHS<RegType> {
     ArithmeticOperation {
         operator: Operator,
-        arg1: VirtualRegister,
-        arg2: VirtualRegister,
+        arg1: RegType,
+        arg2: RegType,
     },
     LoadIntegerLiteral {
         value: i64,
     },
     Move {
-        src: VirtualRegister,
+        src: RegType,
     },
 }
 
 #[derive(Debug)]
 pub struct Instruction {
-    pub lhs: VirtualRegister,
-    pub rhs: InstructionRHS,
+    pub lhs: VirtualVariable,
+    pub rhs: InstructionRHS<VirtualVariable>,
 }
 
 impl Instruction {
-    pub fn new(lhs: VirtualRegister, rhs: InstructionRHS) -> Self {
+    pub fn new(lhs: VirtualVariable, rhs: InstructionRHS<VirtualVariable>) -> Self {
         Instruction { lhs, rhs }
     }
-}
-
-pub struct SSAInstruction {
-    lhs: VirtualRegisterLValue,
-    rhs: InstructionRHS,
 }
 
 impl Display for Instruction {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{} = ", self.lhs)?;
-        match self.rhs {
+        match &self.rhs {
             InstructionRHS::ArithmeticOperation {
                 operator,
                 arg1,
@@ -57,9 +52,9 @@ impl Display for Instruction {
 }
 
 #[derive(Debug)]
-pub enum JumpInstruction {
+pub enum JumpInstruction<RegType> {
     BranchIfElseZero {
-        pred: VirtualRegister,
+        pred: RegType,
         conseq: BlockRef,
         alt: BlockRef,
     },
@@ -69,7 +64,7 @@ pub enum JumpInstruction {
     Ret,
 }
 
-impl JumpInstruction {
+impl<RegType> JumpInstruction<RegType> {
     pub fn dests(&self) -> Vec<BlockRef> {
         match self {
             JumpInstruction::BranchIfElseZero { conseq, alt, .. } => {
@@ -81,7 +76,7 @@ impl JumpInstruction {
     }
 }
 
-impl Display for JumpInstruction {
+impl<RegType: Display> Display for JumpInstruction<RegType> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             JumpInstruction::BranchIfElseZero { pred, conseq, alt } => {

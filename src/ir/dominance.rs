@@ -1,10 +1,10 @@
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
-use super::core_structs::BlockRef;
+use super::structs::BlockRef;
 use crate::utils::RcEquality;
 
-type BlockDataLookup<T> = HashMap<RcEquality<BlockRef>, T>;
+pub type BlockDataLookup<T> = HashMap<RcEquality<BlockRef>, T>;
 
 /*
 Cooper, Keith D., Timothy J. Harvey, and Ken Kennedy.
@@ -120,6 +120,27 @@ fn intersect(
     a
 }
 
+pub fn find_immediately_dominated(
+    blocks: &[BlockRef],
+    dominators: &BlockDataLookup<BlockRef>,
+) -> BlockDataLookup<Vec<BlockRef>> {
+    let mut dominated = HashMap::new();
+    for block in blocks {
+        let dom = dominators
+            .get(&block.clone().into())
+            .expect("block must have dominator");
+        if Rc::ptr_eq(block, dom) {
+            // it's the root node, so it's a special case
+            continue;
+        }
+        dominated
+            .entry(dom.clone().into())
+            .or_insert(vec![])
+            .push(block.clone());
+    }
+    dominated
+}
+
 pub fn dominance_frontiers(
     blocks: &[BlockRef],
     predecessors: &BlockDataLookup<Vec<BlockRef>>,
@@ -131,10 +152,18 @@ pub fn dominance_frontiers(
             if preds.len() > 1 {
                 for pred in preds.clone() {
                     let mut pos = pred;
-                    let dom = dominators.get(&block.clone().into()).expect("block must have dominator");
+                    let dom = dominators
+                        .get(&block.clone().into())
+                        .expect("block must have dominator");
                     while !Rc::ptr_eq(&pos, dom) {
-                        frontiers.entry(pos.clone().into()).or_insert(vec![]).push(block.clone().into());
-                        pos = dominators.get(&pos.into()).expect("block must have dominator").clone();
+                        frontiers
+                            .entry(pos.clone().into())
+                            .or_insert(vec![])
+                            .push(block.clone());
+                        pos = dominators
+                            .get(&pos.into())
+                            .expect("block must have dominator")
+                            .clone();
                     }
                 }
             }
