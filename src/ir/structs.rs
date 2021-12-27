@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::fmt::{self, Debug, Display, Formatter};
 use std::marker::PhantomData;
 use std::rc::{Rc, Weak};
@@ -6,6 +7,7 @@ use std::rc::{Rc, Weak};
 use itertools::Itertools;
 
 use super::instructions::{Instruction, JumpInstruction};
+use crate::utils::rcequality::RcEquality;
 
 #[derive(Debug)]
 pub struct Function<RegType, BlockType> {
@@ -113,10 +115,16 @@ impl Display for Block {
 #[derive(Debug)]
 pub struct SSABlock {
     pub(super) debug_index: u16,
-    pub preds: Vec<Weak<RefCell<Block>>>,
+    pub preds: Vec<Weak<RefCell<SSABlock>>>,
     pub phis: Vec<Phi>,
     pub instructions: Vec<Instruction<VirtualRegisterLValue>>,
     pub exit: JumpInstruction<VirtualRegister, SSABlock>,
+}
+
+impl SSABlock {
+    pub fn preds(&self) -> impl Iterator<Item = Rc<RefCell<SSABlock>>> + '_ {
+        self.preds.iter().filter_map(|preds| preds.upgrade())
+    }
 }
 
 impl BlockWithDebugIndex for SSABlock {
@@ -139,10 +147,15 @@ impl Display for SSABlock {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         writeln!(
             f,
-            "block {} (\n{})",
+            "block {} (preds=[{}])",
             self.debug_index,
-            self.phis.iter().map(|phi| format!("\t{},\n", phi)).join("")
+            self.preds()
+                .map(|pred| format!("{}", pred.borrow().debug_index))
+                .join(", ")
         )?;
+        for phi in &self.phis {
+            writeln!(f, "{phi}")?;
+        }
         for inst in &self.instructions {
             writeln!(f, "{inst}")?;
         }
@@ -200,7 +213,7 @@ impl Display for VirtualRegisterLValue {
 
 #[derive(Debug)]
 pub struct Phi {
-    pub srcs: Vec<(VirtualRegister, Weak<RefCell<SSABlock>>)>,
+    pub srcs: HashMap<RcEquality<Weak<RefCell<SSABlock>>>, VirtualRegister>,
     pub dest: VirtualRegisterLValue,
 }
 
@@ -212,11 +225,11 @@ impl Display for Phi {
             self.dest,
             self.srcs
                 .iter()
-                .map(|(reg, block)| {
+                .map(|(block, reg)| {
                     format!(
                         "{} from block {}",
                         reg,
-                        (block.upgrade().unwrap()).borrow().debug_index
+                        (block.get_ref().upgrade().unwrap()).borrow().debug_index
                     )
                 })
                 .join(", ")

@@ -112,7 +112,7 @@ impl<RegType, BlockType> JumpInstruction<RegType, BlockType> {
     pub fn replace<NewRegType: Copy, NewBlockType>(
         &self,
         frame: &Frame<RegType, NewRegType>,
-        block_lookup: &HashMap<RcEquality<RefCell<BlockType>>, Rc<RefCell<NewBlockType>>>,
+        block_lookup: &HashMap<RcEquality<Rc<RefCell<BlockType>>>, Rc<RefCell<NewBlockType>>>,
     ) -> Option<JumpInstruction<NewRegType, NewBlockType>>
     where
         RegType: Hash + Eq,

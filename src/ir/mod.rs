@@ -1,15 +1,17 @@
 use anyhow::Result;
 
-use self::dominance::{find_immediate_dominators, sort_blocks_postorder};
+use self::dominance::{
+    dominance_frontiers, find_immediate_dominators, find_immediately_dominated,
+    sort_blocks_postorder,
+};
 use self::gen::gen_expr;
 use self::instructions::{Instruction, JumpInstruction};
-use self::structs::Function;
-pub use self::structs::{SSABlock, VirtualRegister, VirtualRegisterLValue};
-use crate::ir::dominance::{dominance_frontiers, find_immediately_dominated};
-use crate::ir::ssa_transform::{
+use self::ssa_transform::{
     alloc_ssa_blocks, backfill_ssa_phis, defining_blocks_for_variables, populate_ssa_blocks,
     ssa_phis,
 };
+use self::structs::Function;
+pub use self::structs::{SSABlock, VirtualRegister, VirtualRegisterLValue};
 use crate::semantics::Expr;
 use crate::utils::frame::Frame;
 

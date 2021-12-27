@@ -1,14 +1,13 @@
-use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
 use itertools::Itertools;
 
-use super::structs::{Block, BlockRef};
+use super::structs::BlockRef;
 use crate::utils::graph::explore;
 use crate::utils::rcequality::{RcEquality, RcEqualityKey};
 
-pub type BlockDataLookup<T> = HashMap<RcEquality<RefCell<Block>>, T>;
+pub type BlockDataLookup<T> = HashMap<RcEquality<BlockRef>, T>;
 
 /*
 Cooper, Keith D., Timothy J. Harvey, and Ken Kennedy.
@@ -24,7 +23,7 @@ pub fn sort_blocks_postorder(
 ) {
     let mut blocks = vec![];
     let mut predecessors = HashMap::new();
-    let mut visited = HashSet::<RcEquality<RefCell<Block>>>::new();
+    let mut visited = HashSet::<RcEquality<BlockRef>>::new();
 
     explore(
         root,
@@ -120,18 +119,12 @@ fn intersect(
         while index_lookup.get(&a.as_key()).expect(index_error)
             < index_lookup.get(&b.as_key()).expect(index_error)
         {
-            a = dominators
-                .get(&a.as_key())
-                .expect(dominator_error)
-                .clone();
+            a = dominators.get(&a.as_key()).expect(dominator_error).clone();
         }
         while index_lookup.get(&b.as_key()).expect(index_error)
             < index_lookup.get(&a.as_key()).expect(index_error)
         {
-            b = dominators
-                .get(&b.as_key())
-                .expect(dominator_error)
-                .clone();
+            b = dominators.get(&b.as_key()).expect(dominator_error).clone();
         }
     }
     a

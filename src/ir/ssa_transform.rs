@@ -7,8 +7,7 @@ use itertools::Itertools;
 use super::dominance::BlockDataLookup;
 use super::instructions::Instruction;
 use super::structs::{
-    Block, BlockRef, Function, Phi, SSABlock, VirtualRegister, VirtualRegisterLValue,
-    VirtualVariable,
+    BlockRef, Function, Phi, SSABlock, VirtualRegister, VirtualRegisterLValue, VirtualVariable,
 };
 use crate::utils::frame::Frame;
 use crate::utils::graph::explore;
@@ -16,7 +15,7 @@ use crate::utils::rcequality::{RcEquality, RcEqualityKey};
 
 pub fn defining_blocks_for_variables(
     blocks: &[BlockRef],
-) -> HashMap<VirtualVariable, HashSet<RcEquality<RefCell<Block>>>> {
+) -> HashMap<VirtualVariable, HashSet<RcEquality<BlockRef>>> {
     let mut out = HashMap::new();
     for block in blocks.iter() {
         for inst in block.borrow().instructions.iter() {
@@ -30,7 +29,7 @@ pub fn defining_blocks_for_variables(
 
 pub fn ssa_phis<T>(
     func: &mut Function<VirtualRegisterLValue, T>,
-    variable_defns: &HashMap<VirtualVariable, HashSet<RcEquality<RefCell<Block>>>>,
+    variable_defns: &HashMap<VirtualVariable, HashSet<RcEquality<BlockRef>>>,
     frontiers: &BlockDataLookup<Vec<BlockRef>>,
 ) -> BlockDataLookup<HashMap<VirtualVariable, VirtualRegisterLValue>> {
     let mut out = BlockDataLookup::new();
@@ -39,7 +38,7 @@ pub fn ssa_phis<T>(
             .iter()
             .map(|block| block.get_ref().clone())
             .collect_vec();
-        let mut explored = HashSet::<RcEquality<RefCell<Block>>>::new();
+        let mut explored = HashSet::<RcEquality<BlockRef>>::new();
         while let Some(next) = todo.pop() {
             if explored.insert(next.clone().into()) {
                 for frontier in frontiers.get(&next.as_key()).unwrap_or(&vec![]) {
@@ -92,7 +91,7 @@ pub fn populate_ssa_blocks<T>(
                 for (var, reg @ VirtualRegisterLValue(reg_ref)) in block_phis.into_iter() {
                     frame.assoc(var, reg_ref);
                     ssa_block.borrow_mut().phis.push(Phi {
-                        srcs: vec![],
+                        srcs: HashMap::new(),
                         dest: reg,
                     });
                     block_phi_vars.insert(reg_ref, var);
@@ -154,6 +153,10 @@ pub fn backfill_ssa_phis(
             let dest_ssa_block = ssa_blocks
                 .get(&dest.as_key())
                 .expect("all blocks must have an ssa block");
+            dest_ssa_block
+                .borrow_mut()
+                .preds
+                .push(Rc::downgrade(src_ssa_block));
             if let Some(dest_phi_vars) = phi_vars.get(&dest.as_key()) {
                 dest_ssa_block.borrow_mut().phis.drain_filter(|phi| {
                     let Phi {
@@ -164,7 +167,7 @@ pub fn backfill_ssa_phis(
                         .get(dest)
                         .expect("all phi blocks must have a reverse var mapping");
                     if let Some(src_reg) = src_frame.lookup(var) {
-                        srcs.push((src_reg, Rc::downgrade(src_ssa_block)));
+                        srcs.insert(Rc::downgrade(src_ssa_block).into(), src_reg);
                         false
                     } else {
                         true
