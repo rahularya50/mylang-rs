@@ -1,3 +1,4 @@
+#![feature(drain_filter)]
 use std::fs::read_to_string;
 
 use anyhow::{Context, Result};

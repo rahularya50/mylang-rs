@@ -10,7 +10,7 @@ use super::instructions::{Instruction, JumpInstruction};
 #[derive(Debug)]
 pub struct Function<RegType, BlockType> {
     reg_counter: u16,
-    block_counter: u16,
+    block_counter: Option<u16>,
     pub start_block: Rc<RefCell<BlockType>>,
     pub blocks: Vec<Weak<RefCell<BlockType>>>,
     _reg: PhantomData<RegType>,
@@ -21,7 +21,7 @@ impl<RegType, BlockType: BlockWithDebugIndex> Function<RegType, BlockType> {
         let start_block = Rc::new(RefCell::new(BlockType::new_with_index(0)));
         Function {
             reg_counter: 0,
-            block_counter: 0,
+            block_counter: None,
             start_block: start_block.clone(),
             blocks: vec![Rc::downgrade(&start_block)],
             _reg: PhantomData,
@@ -29,9 +29,13 @@ impl<RegType, BlockType: BlockWithDebugIndex> Function<RegType, BlockType> {
     }
 
     pub fn new_block(&mut self) -> Rc<RefCell<BlockType>> {
-        self.block_counter += 1;
-        let out = Rc::new(RefCell::new(BlockType::new_with_index(self.block_counter)));
+        let next_counter = self.block_counter.map(|x| x + 1).unwrap_or_default();
+        let out = Rc::new(RefCell::new(BlockType::new_with_index(next_counter)));
         self.blocks.push(Rc::downgrade(&out));
+        if self.block_counter.is_none() {
+            self.start_block = out.clone();
+        }
+        self.block_counter = Some(next_counter);
         out
     }
 }
@@ -127,9 +131,9 @@ impl Display for SSABlock {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         writeln!(
             f,
-            "block {} ({})",
+            "block {} (\n{})",
             self.debug_index,
-            self.phis.iter().join(",")
+            self.phis.iter().map(|phi| format!("\t{},\n", phi)).join("")
         )?;
         for inst in &self.instructions {
             writeln!(f, "{inst}")?;

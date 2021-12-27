@@ -87,18 +87,12 @@ pub fn populate_ssa_blocks<T>(
             if let Some(block_phis) = block_phis {
                 let mut block_phi_vars = HashMap::new();
                 for (var, reg @ VirtualRegisterLValue(reg_ref)) in block_phis.into_iter() {
-                    // do not allow variables to be speculatively defined
-                    // they must have a definition from a dominating node, even if it is always overridden
-                    // this is mostly a safety check, we can relax it later without violating correctness
-                    // if we add a pass to prune invalid phis
-                    if frame.lookup(&var).is_some() {
-                        frame.assoc(var, reg_ref);
-                        ssa_block.borrow_mut().phis.push(Phi {
-                            srcs: vec![],
-                            dest: reg,
-                        });
-                        block_phi_vars.insert(reg_ref, var);
-                    }
+                    frame.assoc(var, reg_ref);
+                    ssa_block.borrow_mut().phis.push(Phi {
+                        srcs: vec![],
+                        dest: reg,
+                    });
+                    block_phi_vars.insert(reg_ref, var);
                 }
                 phi_vars.insert(block.clone().into(), block_phi_vars);
             }
@@ -122,14 +116,17 @@ pub fn populate_ssa_blocks<T>(
                 .replace(frame, ssa_blocks)
                 .expect("all registers and blocks should already be defined/mapped");
 
-            dominated
-                .get(&block.clone().into())
-                .unwrap_or(&vec![])
-                .iter()
-                .map(|block| (block.clone(), frame.new_child()))
-                .collect_vec()
+            (
+                dominated
+                    .get(&block.clone().into())
+                    .unwrap_or(&vec![])
+                    .iter()
+                    .map(|block| (block.clone(), frame.new_child()))
+                    .collect_vec(),
+                (),
+            )
         },
-        |(block, frame), _| {
+        |(block, frame), _, _| {
             frames.insert(block.into(), frame);
         },
     );
@@ -155,19 +152,21 @@ pub fn backfill_ssa_phis(
                 .get(&dest.clone().into())
                 .expect("all blocks must have an ssa block");
             if let Some(dest_phi_vars) = phi_vars.get(&dest.clone().into()) {
-                for Phi {
-                    ref mut srcs,
-                    dest: VirtualRegisterLValue(dest),
-                } in &mut dest_ssa_block.borrow_mut().phis
-                {
+                dest_ssa_block.borrow_mut().phis.drain_filter(|phi| {
+                    let Phi {
+                        ref mut srcs,
+                        dest: VirtualRegisterLValue(dest),
+                    } = phi;
                     let var = dest_phi_vars
-                        .get(dest)
+                        .get(&dest)
                         .expect("all phi blocks must have a reverse var mapping");
-                    let src_reg = src_frame
-                        .lookup(var)
-                        .expect("phi srcs must be defined in each possible input");
-                    srcs.push((src_reg, Rc::downgrade(src_ssa_block)));
-                }
+                    if let Some(src_reg) = src_frame.lookup(var) {
+                        srcs.push((src_reg, Rc::downgrade(src_ssa_block)));
+                        false
+                    } else {
+                        true
+                    }
+                });
             }
         }
     }

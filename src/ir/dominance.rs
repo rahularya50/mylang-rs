@@ -28,25 +28,30 @@ pub fn sort_blocks_postorder(
         root,
         |pos| {
             if visited.insert(pos.clone().into()) {
-                (*pos)
-                    .borrow()
-                    .exit
-                    .dests()
-                    .into_iter()
-                    .map(|dst| {
-                        predecessors
-                            .entry(dst.clone().into())
-                            .or_insert(vec![])
-                            .push(pos.clone());
-                        dst
-                    })
-                    .collect_vec()
+                (
+                    (*pos)
+                        .borrow()
+                        .exit
+                        .dests()
+                        .into_iter()
+                        .map(|dst| {
+                            predecessors
+                                .entry(dst.clone().into())
+                                .or_insert(vec![])
+                                .push(pos.clone());
+                            dst
+                        })
+                        .collect_vec(),
+                    true,
+                )
             } else {
-                vec![]
+                (vec![], false)
             }
         },
-        |pos, _| {
-            blocks.push(pos);
+        |pos, unexplored, _| {
+            if unexplored {
+                blocks.push(pos);
+            }
         },
     );
 

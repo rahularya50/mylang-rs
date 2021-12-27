@@ -14,7 +14,8 @@
 (loop
     (set loopx 1)
     (set x (+ 4 x))
-    (if x (break) (continue))
+    (if x (break) (if (+ 1 x) (continue)))
     (set x (if 1 2 3))
+    (if x (break))
 )
 (+ x loopx)
