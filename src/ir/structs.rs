@@ -188,7 +188,7 @@ impl Display for VirtualRegisterLValue {
 
 #[derive(Debug)]
 pub struct Phi {
-    pub srcs: Vec<(VirtualRegister, Weak<RefCell<Block>>)>,
+    pub srcs: Vec<(VirtualRegister, Weak<RefCell<SSABlock>>)>,
     pub dest: VirtualRegisterLValue,
 }
 

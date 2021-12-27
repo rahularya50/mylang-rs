@@ -5,7 +5,8 @@ use self::gen::gen_expr;
 use self::structs::{Function, SSABlock, VirtualRegisterLValue};
 use crate::ir::dominance::{dominance_frontiers, find_immediately_dominated};
 use crate::ir::ssa_transform::{
-    alloc_ssa_blocks, defining_blocks_for_variables, populate_ssa_blocks, ssa_phis,
+    alloc_ssa_blocks, backfill_ssa_phis, defining_blocks_for_variables, populate_ssa_blocks,
+    ssa_phis,
 };
 use crate::semantics::Expr;
 use crate::utils::Frame;
@@ -18,12 +19,11 @@ mod structs;
 
 pub fn gen_ssa(expr: &mut Expr) -> Result<Function<VirtualRegisterLValue, SSABlock>> {
     let mut func = Function::new();
-    let mut frame = Frame::new();
     let start_block = func.start_block.clone();
     gen_expr(
         expr,
         &mut func,
-        &mut frame,
+        &mut Frame::new(),
         &mut vec![],
         start_block.clone(),
     )?;
@@ -43,8 +43,13 @@ pub fn gen_ssa(expr: &mut Expr) -> Result<Function<VirtualRegisterLValue, SSABlo
     let mut func = Function::new();
     let phis = ssa_phis(&mut func, &variable_defns, &frontiers);
 
-    let ssa_blocks = alloc_ssa_blocks(&mut func, &sorted_blocks);
-    let ssa_frames = populate_ssa_blocks(&mut func, start_block, phis, &dominated, &ssa_blocks);
+    let mut blocks = sorted_blocks;
+    blocks.reverse();
+
+    let ssa_blocks = alloc_ssa_blocks(&mut func, &blocks);
+    let (ssa_frames, ssa_phi_vars) =
+        populate_ssa_blocks(&mut func, start_block, phis, &dominated, &ssa_blocks);
+    backfill_ssa_phis(&blocks, &ssa_blocks, &ssa_phi_vars, &ssa_frames);
 
     println!("{func}");
 

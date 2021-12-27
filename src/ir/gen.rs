@@ -10,10 +10,10 @@ pub struct LoopContext {
     loop_break: BlockRef,
 }
 
-pub fn gen_expr<'a, 'b>(
+pub fn gen_expr(
     expr: &mut Expr,
     func: &mut Function<VirtualVariable, Block>,
-    frame: &'b mut Frame<'a, String, VirtualVariable>,
+    frame: &mut Frame<String, VirtualVariable>,
     loops: &mut Vec<LoopContext>,
     mut block: BlockRef,
 ) -> Result<(Option<VirtualVariable>, BlockRef)> {

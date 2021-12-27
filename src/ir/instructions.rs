@@ -4,7 +4,7 @@ use std::fmt::{self, Debug, Display, Formatter};
 use std::hash::Hash;
 use std::rc::Rc;
 
-use super::structs::{BlockRef, BlockWithDebugIndex, RegisterLValue};
+use super::structs::{BlockWithDebugIndex, RegisterLValue};
 use crate::semantics::Operator;
 use crate::utils::{Frame, RcEquality};
 
