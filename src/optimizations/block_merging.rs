@@ -1,14 +1,13 @@
 use std::cell::RefCell;
 use std::collections::HashSet;
-use std::rc::Rc;
 
 use crate::ir::{SSABlock, SSAFunction, SSAJumpInstruction};
-use crate::utils::rcequality::RcEquality;
+use crate::utils::rcequality::{RcEquality, RcEqualityKey};
 
 pub fn remove_empty_blocks(func: &mut SSAFunction) {
     let mut visited = HashSet::<RcEquality<RefCell<SSABlock>>>::new();
     while let Some(block_to_remove) = func.blocks().find(|block| {
-        !visited.contains(&Rc::as_ptr(block))
+        !visited.contains(&block.as_key())
             && block.borrow().instructions.is_empty()
             && block.borrow().phis.is_empty()
             && matches!(

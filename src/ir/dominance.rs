@@ -90,7 +90,7 @@ pub fn find_immediate_dominators(
             let idom = node_preds
                 .iter()
                 .cloned()
-                .filter(|x| dominators.contains_key(&Rc::as_ptr(x)))
+                .filter(|x| dominators.contains_key(&x.as_key()))
                 .reduce(|a, b| intersect(a, b, index_lookup, &dominators))
                 .expect("current node should have a predecessor with dominance computated");
 
@@ -117,11 +117,11 @@ fn intersect(
         let dominator_error = "all blocks should be in dominators while performing intersection";
         let index_error = "all blocks should be in index lookup";
 
-        while index_lookup.get(&Rc::as_ptr(&a)).expect(index_error)
-            < index_lookup.get(&Rc::as_ptr(&b)).expect(index_error)
+        while index_lookup.get(&a.as_key()).expect(index_error)
+            < index_lookup.get(&b.as_key()).expect(index_error)
         {
             a = dominators
-                .get(&Rc::as_ptr(&a))
+                .get(&a.as_key())
                 .expect(dominator_error)
                 .clone();
         }
@@ -129,7 +129,7 @@ fn intersect(
             < index_lookup.get(&a.as_key()).expect(index_error)
         {
             b = dominators
-                .get(&Rc::as_ptr(&b))
+                .get(&b.as_key())
                 .expect(dominator_error)
                 .clone();
         }
