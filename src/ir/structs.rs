@@ -38,6 +38,14 @@ impl<RegType, BlockType: BlockWithDebugIndex> Function<RegType, BlockType> {
         self.block_counter = Some(next_counter);
         out
     }
+
+    pub fn blocks(&self) -> impl Iterator<Item = Rc<RefCell<BlockType>>> + '_ {
+        self.blocks.iter().filter_map(|block| block.upgrade())
+    }
+
+    pub fn clear_dead_blocks(&mut self) {
+        self.blocks.drain_filter(|block| block.upgrade().is_none());
+    }
 }
 
 impl<RegType: RegisterLValue, BlockType> Function<RegType, BlockType> {

@@ -1,12 +1,14 @@
+use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
 use itertools::Itertools;
 
-use super::structs::BlockRef;
-use crate::utils::{explore, RcEquality};
+use super::structs::{Block, BlockRef};
+use crate::utils::graph::explore;
+use crate::utils::rcequality::{RcEquality, RcEqualityKey};
 
-pub type BlockDataLookup<T> = HashMap<RcEquality<BlockRef>, T>;
+pub type BlockDataLookup<T> = HashMap<RcEquality<RefCell<Block>>, T>;
 
 /*
 Cooper, Keith D., Timothy J. Harvey, and Ken Kennedy.
@@ -22,7 +24,7 @@ pub fn sort_blocks_postorder(
 ) {
     let mut blocks = vec![];
     let mut predecessors = HashMap::new();
-    let mut visited = HashSet::<RcEquality<BlockRef>>::new();
+    let mut visited = HashSet::<RcEquality<RefCell<Block>>>::new();
 
     explore(
         root,
@@ -88,7 +90,7 @@ pub fn find_immediate_dominators(
             let idom = node_preds
                 .iter()
                 .cloned()
-                .filter(|x| dominators.contains_key(&x.clone().into()))
+                .filter(|x| dominators.contains_key(&Rc::as_ptr(x)))
                 .reduce(|a, b| intersect(a, b, index_lookup, &dominators))
                 .expect("current node should have a predecessor with dominance computated");
 
@@ -115,19 +117,19 @@ fn intersect(
         let dominator_error = "all blocks should be in dominators while performing intersection";
         let index_error = "all blocks should be in index lookup";
 
-        while index_lookup.get(&a.clone().into()).expect(index_error)
-            < index_lookup.get(&b.clone().into()).expect(index_error)
+        while index_lookup.get(&Rc::as_ptr(&a)).expect(index_error)
+            < index_lookup.get(&Rc::as_ptr(&b)).expect(index_error)
         {
             a = dominators
-                .get(&a.clone().into())
+                .get(&Rc::as_ptr(&a))
                 .expect(dominator_error)
                 .clone();
         }
-        while index_lookup.get(&b.clone().into()).expect(index_error)
-            < index_lookup.get(&a.clone().into()).expect(index_error)
+        while index_lookup.get(&b.as_key()).expect(index_error)
+            < index_lookup.get(&a.as_key()).expect(index_error)
         {
             b = dominators
-                .get(&b.clone().into())
+                .get(&Rc::as_ptr(&b))
                 .expect(dominator_error)
                 .clone();
         }
@@ -142,7 +144,7 @@ pub fn find_immediately_dominated(
     let mut dominated = BlockDataLookup::new();
     for block in blocks {
         let dom = dominators
-            .get(&block.clone().into())
+            .get(&block.as_key())
             .expect("block must have dominator");
         if Rc::ptr_eq(block, dom) {
             // it's the root node, so it's a special case
@@ -163,12 +165,12 @@ pub fn dominance_frontiers(
 ) -> BlockDataLookup<Vec<BlockRef>> {
     let mut frontiers = BlockDataLookup::new();
     for block in blocks {
-        if let Some(preds) = predecessors.get(&block.clone().into()) {
+        if let Some(preds) = predecessors.get(&block.as_key()) {
             if preds.len() > 1 {
                 for pred in preds.clone() {
                     let mut pos = pred;
                     let dom = dominators
-                        .get(&block.clone().into())
+                        .get(&block.as_key())
                         .expect("block must have dominator");
                     while !Rc::ptr_eq(&pos, dom) {
                         frontiers
@@ -176,7 +178,7 @@ pub fn dominance_frontiers(
                             .or_insert(vec![])
                             .push(block.clone());
                         pos = dominators
-                            .get(&pos.into())
+                            .get(&pos.as_key())
                             .expect("block must have dominator")
                             .clone();
                     }

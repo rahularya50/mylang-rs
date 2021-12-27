@@ -3,7 +3,7 @@ use anyhow::{bail, Context, Result};
 use super::instructions::{Instruction, InstructionRHS, JumpInstruction};
 use super::structs::{Block, BlockRef, Function, VirtualVariable};
 use crate::semantics::Expr;
-use crate::utils::Frame;
+use crate::utils::frame::Frame;
 
 pub struct LoopContext {
     loop_start: BlockRef,

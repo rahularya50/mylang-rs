@@ -6,7 +6,8 @@ use std::rc::Rc;
 
 use super::structs::{BlockWithDebugIndex, RegisterLValue};
 use crate::semantics::Operator;
-use crate::utils::{Frame, RcEquality};
+use crate::utils::frame::Frame;
+use crate::utils::rcequality::{RcEquality, RcEqualityKey};
 
 #[derive(Debug)]
 pub enum InstructionRHS<RegType> {
@@ -111,7 +112,7 @@ impl<RegType, BlockType> JumpInstruction<RegType, BlockType> {
     pub fn replace<NewRegType: Copy, NewBlockType>(
         &self,
         frame: &Frame<RegType, NewRegType>,
-        block_lookup: &HashMap<RcEquality<Rc<RefCell<BlockType>>>, Rc<RefCell<NewBlockType>>>,
+        block_lookup: &HashMap<RcEquality<RefCell<BlockType>>, Rc<RefCell<NewBlockType>>>,
     ) -> Option<JumpInstruction<NewRegType, NewBlockType>>
     where
         RegType: Hash + Eq,
@@ -120,12 +121,12 @@ impl<RegType, BlockType> JumpInstruction<RegType, BlockType> {
             JumpInstruction::BranchIfElseZero { pred, conseq, alt } => {
                 JumpInstruction::BranchIfElseZero {
                     pred: frame.lookup(pred)?,
-                    conseq: block_lookup.get(&conseq.clone().into())?.clone(),
-                    alt: block_lookup.get(&alt.clone().into())?.clone(),
+                    conseq: block_lookup.get(&conseq.as_key())?.clone(),
+                    alt: block_lookup.get(&alt.as_key())?.clone(),
                 }
             }
             JumpInstruction::UnconditionalJump { dest } => JumpInstruction::UnconditionalJump {
-                dest: block_lookup.get(&dest.clone().into())?.clone(),
+                dest: block_lookup.get(&dest.as_key())?.clone(),
             },
             JumpInstruction::Ret => JumpInstruction::Ret,
         })

@@ -7,13 +7,16 @@ use itertools::Itertools;
 use super::dominance::BlockDataLookup;
 use super::instructions::Instruction;
 use super::structs::{
-    BlockRef, Function, Phi, SSABlock, VirtualRegister, VirtualRegisterLValue, VirtualVariable,
+    Block, BlockRef, Function, Phi, SSABlock, VirtualRegister, VirtualRegisterLValue,
+    VirtualVariable,
 };
-use crate::utils::{explore, Frame, RcEquality};
+use crate::utils::frame::Frame;
+use crate::utils::graph::explore;
+use crate::utils::rcequality::{RcEquality, RcEqualityKey};
 
 pub fn defining_blocks_for_variables(
     blocks: &[BlockRef],
-) -> HashMap<VirtualVariable, HashSet<RcEquality<BlockRef>>> {
+) -> HashMap<VirtualVariable, HashSet<RcEquality<RefCell<Block>>>> {
     let mut out = HashMap::new();
     for block in blocks.iter() {
         for inst in block.borrow().instructions.iter() {
@@ -27,19 +30,19 @@ pub fn defining_blocks_for_variables(
 
 pub fn ssa_phis<T>(
     func: &mut Function<VirtualRegisterLValue, T>,
-    variable_defns: &HashMap<VirtualVariable, HashSet<RcEquality<BlockRef>>>,
+    variable_defns: &HashMap<VirtualVariable, HashSet<RcEquality<RefCell<Block>>>>,
     frontiers: &BlockDataLookup<Vec<BlockRef>>,
 ) -> BlockDataLookup<HashMap<VirtualVariable, VirtualRegisterLValue>> {
     let mut out = BlockDataLookup::new();
     for (var, defns) in variable_defns.iter() {
         let mut todo = defns
             .iter()
-            .map(|RcEquality(block)| block.clone())
+            .map(|block| block.get_ref().clone())
             .collect_vec();
-        let mut explored = HashSet::<RcEquality<BlockRef>>::new();
+        let mut explored = HashSet::<RcEquality<RefCell<Block>>>::new();
         while let Some(next) = todo.pop() {
             if explored.insert(next.clone().into()) {
-                for frontier in frontiers.get(&next.clone().into()).unwrap_or(&vec![]) {
+                for frontier in frontiers.get(&next.as_key()).unwrap_or(&vec![]) {
                     out.entry(frontier.clone().into())
                         .or_insert_with(HashMap::new)
                         .insert(*var, func.new_reg());
@@ -79,9 +82,9 @@ pub fn populate_ssa_blocks<T>(
         (start_block, Frame::new()),
         |(block, frame)| {
             let ssa_block = ssa_blocks
-                .get(&block.clone().into())
+                .get(&block.as_key())
                 .expect("all blocks should map to ssa blocks");
-            let block_phis = phis.remove(&block.clone().into());
+            let block_phis = phis.remove(&block.as_key());
 
             // override any variables from dominating nodes using phi nodes
             if let Some(block_phis) = block_phis {
@@ -118,7 +121,7 @@ pub fn populate_ssa_blocks<T>(
 
             (
                 dominated
-                    .get(&block.clone().into())
+                    .get(&block.as_key())
                     .unwrap_or(&vec![])
                     .iter()
                     .map(|block| (block.clone(), frame.new_child()))
@@ -142,16 +145,16 @@ pub fn backfill_ssa_phis(
 ) {
     for block in blocks {
         let src_ssa_block = ssa_blocks
-            .get(&block.clone().into())
+            .get(&block.as_key())
             .expect("all blocks must have an ssa block");
         let src_frame = frames
-            .get(&block.clone().into())
+            .get(&block.as_key())
             .expect("all blocks must have a frame");
         for dest in block.borrow().exit.dests() {
             let dest_ssa_block = ssa_blocks
-                .get(&dest.clone().into())
+                .get(&dest.as_key())
                 .expect("all blocks must have an ssa block");
-            if let Some(dest_phi_vars) = phi_vars.get(&dest.clone().into()) {
+            if let Some(dest_phi_vars) = phi_vars.get(&dest.as_key()) {
                 dest_ssa_block.borrow_mut().phis.drain_filter(|phi| {
                     let Phi {
                         ref mut srcs,
