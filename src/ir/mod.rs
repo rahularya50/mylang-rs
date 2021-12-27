@@ -49,7 +49,7 @@ pub fn gen_ssa(expr: &mut Expr) -> Result<Function<VirtualRegisterLValue, SSABlo
     let ssa_blocks = alloc_ssa_blocks(&mut func, &blocks);
     let (ssa_frames, ssa_phi_vars) =
         populate_ssa_blocks(&mut func, start_block, phis, &dominated, &ssa_blocks);
-    backfill_ssa_phis(&blocks, &ssa_blocks, &ssa_phi_vars, &ssa_frames);
+    backfill_ssa_phis(&blocks, &ssa_blocks, &ssa_frames, &ssa_phi_vars);
 
     println!("{func}");
 

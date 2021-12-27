@@ -9,7 +9,7 @@ use super::instructions::Instruction;
 use super::structs::{
     BlockRef, Function, Phi, SSABlock, VirtualRegister, VirtualRegisterLValue, VirtualVariable,
 };
-use crate::utils::{Frame, RcEquality};
+use crate::utils::{explore, Frame, RcEquality};
 
 pub fn defining_blocks_for_variables(
     blocks: &[BlockRef],
@@ -30,7 +30,7 @@ pub fn ssa_phis<T>(
     variable_defns: &HashMap<VirtualVariable, HashSet<RcEquality<BlockRef>>>,
     frontiers: &BlockDataLookup<Vec<BlockRef>>,
 ) -> BlockDataLookup<HashMap<VirtualVariable, VirtualRegisterLValue>> {
-    let mut out = HashMap::new();
+    let mut out = BlockDataLookup::new();
     for (var, defns) in variable_defns.iter() {
         let mut todo = defns
             .iter()
@@ -62,100 +62,76 @@ pub fn alloc_ssa_blocks<T>(
     out
 }
 
+type VirtualRegisterFrameLookup = BlockDataLookup<Frame<VirtualVariable, VirtualRegister>>;
+type PhiVariableReverseLookup = BlockDataLookup<HashMap<VirtualRegister, VirtualVariable>>;
+
 pub fn populate_ssa_blocks<T>(
     func: &mut Function<VirtualRegisterLValue, T>,
     start_block: BlockRef,
     mut phis: BlockDataLookup<HashMap<VirtualVariable, VirtualRegisterLValue>>,
     dominated: &BlockDataLookup<Vec<BlockRef>>,
     ssa_blocks: &BlockDataLookup<Rc<RefCell<SSABlock>>>,
-) -> (
-    BlockDataLookup<Frame<VirtualVariable, VirtualRegister>>,
-    BlockDataLookup<HashMap<VirtualRegister, VirtualVariable>>,
-) {
+) -> (VirtualRegisterFrameLookup, PhiVariableReverseLookup) {
     let mut frames = BlockDataLookup::new();
     let mut phi_vars = BlockDataLookup::new();
 
-    fn explore<T>(
-        func: &mut Function<VirtualRegisterLValue, T>,
-        start_block: BlockRef,
-        frames: &mut BlockDataLookup<Frame<VirtualVariable, VirtualRegister>>,
-        phis: &mut BlockDataLookup<HashMap<VirtualVariable, VirtualRegisterLValue>>,
-        phi_vars: &mut BlockDataLookup<HashMap<VirtualRegister, VirtualVariable>>,
-        dominated: &BlockDataLookup<Vec<BlockRef>>,
-        ssa_blocks: &BlockDataLookup<Rc<RefCell<SSABlock>>>,
-        mut frame: Frame<VirtualVariable, VirtualRegister>,
-    ) {
-        let block = ssa_blocks
-            .get(&start_block.clone().into())
-            .expect("all blocks should map to ssa blocks");
-        let block_phis = phis.remove(&start_block.clone().into());
-
-        // override any variables from dominating nodes using phi nodes
-        if let Some(block_phis) = block_phis {
-            let mut block_phi_vars = HashMap::new();
-            for (var, reg @ VirtualRegisterLValue(reg_ref)) in block_phis.into_iter() {
-                // do not allow variables to be speculatively defined
-                // they must have a definition from a dominating node, even if it is always overridden
-                // this is mostly a safety check, we can relax it later without violating correctness
-                // if we add a pass to prune invalid phis
-                if frame.lookup(&var).is_some() {
-                    frame.assoc(var, reg_ref);
-                    block.borrow_mut().phis.push(Phi {
-                        srcs: vec![],
-                        dest: reg,
-                    });
-                    block_phi_vars.insert(reg_ref, var);
-                }
-            }
-            phi_vars.insert(start_block.clone().into(), block_phi_vars);
-        }
-
-        for inst in start_block.borrow().instructions.iter() {
-            let rhs = inst
-                .rhs
-                .replace_regs(&frame)
-                .expect("all RHS registers should be defined in a dominating or phi block");
-            let reg @ VirtualRegisterLValue(reg_ref) = func.new_reg();
-            frame.assoc(inst.lhs, reg_ref);
-            block
-                .borrow_mut()
-                .instructions
-                .push(Instruction::new(reg, rhs));
-        }
-
-        block.borrow_mut().exit = start_block
-            .borrow_mut()
-            .exit
-            .replace(&frame, ssa_blocks)
-            .expect("all registers and blocks should already be defined/mapped");
-
-        for dominated_block in dominated
-            .get(&start_block.clone().into())
-            .unwrap_or(&vec![])
-        {
-            explore(
-                func,
-                dominated_block.clone(),
-                frames,
-                phis,
-                phi_vars,
-                dominated,
-                ssa_blocks,
-                frame.new_child(),
-            );
-        }
-
-        frames.insert(start_block.into(), frame);
-    }
     explore(
-        func,
-        start_block,
-        &mut frames,
-        &mut phis,
-        &mut phi_vars,
-        dominated,
-        ssa_blocks,
-        Frame::new(),
+        (start_block, Frame::new()),
+        |(block, frame)| {
+            let ssa_block = ssa_blocks
+                .get(&block.clone().into())
+                .expect("all blocks should map to ssa blocks");
+            let block_phis = phis.remove(&block.clone().into());
+
+            // override any variables from dominating nodes using phi nodes
+            if let Some(block_phis) = block_phis {
+                let mut block_phi_vars = HashMap::new();
+                for (var, reg @ VirtualRegisterLValue(reg_ref)) in block_phis.into_iter() {
+                    // do not allow variables to be speculatively defined
+                    // they must have a definition from a dominating node, even if it is always overridden
+                    // this is mostly a safety check, we can relax it later without violating correctness
+                    // if we add a pass to prune invalid phis
+                    if frame.lookup(&var).is_some() {
+                        frame.assoc(var, reg_ref);
+                        ssa_block.borrow_mut().phis.push(Phi {
+                            srcs: vec![],
+                            dest: reg,
+                        });
+                        block_phi_vars.insert(reg_ref, var);
+                    }
+                }
+                phi_vars.insert(block.clone().into(), block_phi_vars);
+            }
+
+            for inst in block.borrow().instructions.iter() {
+                let rhs = inst
+                    .rhs
+                    .replace_regs(frame)
+                    .expect("all RHS registers should be defined in a dominating or phi block");
+                let reg @ VirtualRegisterLValue(reg_ref) = func.new_reg();
+                frame.assoc(inst.lhs, reg_ref);
+                ssa_block
+                    .borrow_mut()
+                    .instructions
+                    .push(Instruction::new(reg, rhs));
+            }
+
+            ssa_block.borrow_mut().exit = block
+                .borrow_mut()
+                .exit
+                .replace(frame, ssa_blocks)
+                .expect("all registers and blocks should already be defined/mapped");
+
+            dominated
+                .get(&block.clone().into())
+                .unwrap_or(&vec![])
+                .iter()
+                .map(|block| (block.clone(), frame.new_child()))
+                .collect_vec()
+        },
+        |(block, frame), _| {
+            frames.insert(block.into(), frame);
+        },
     );
 
     (frames, phi_vars)
@@ -164,8 +140,8 @@ pub fn populate_ssa_blocks<T>(
 pub fn backfill_ssa_phis(
     blocks: &[BlockRef],
     ssa_blocks: &BlockDataLookup<Rc<RefCell<SSABlock>>>,
-    phi_vars: &BlockDataLookup<HashMap<VirtualRegister, VirtualVariable>>,
-    frames: &BlockDataLookup<Frame<VirtualVariable, VirtualRegister>>,
+    frames: &VirtualRegisterFrameLookup,
+    phi_vars: &PhiVariableReverseLookup,
 ) {
     for block in blocks {
         let src_ssa_block = ssa_blocks
@@ -185,7 +161,7 @@ pub fn backfill_ssa_phis(
                 } in &mut dest_ssa_block.borrow_mut().phis
                 {
                     let var = dest_phi_vars
-                        .get(&dest)
+                        .get(dest)
                         .expect("all phi blocks must have a reverse var mapping");
                     let src_reg = src_frame
                         .lookup(var)

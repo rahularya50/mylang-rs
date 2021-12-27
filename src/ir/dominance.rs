@@ -1,8 +1,10 @@
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
+use itertools::Itertools;
+
 use super::structs::BlockRef;
-use crate::utils::RcEquality;
+use crate::utils::{explore, RcEquality};
 
 pub type BlockDataLookup<T> = HashMap<RcEquality<BlockRef>, T>;
 
@@ -20,26 +22,34 @@ pub fn sort_blocks_postorder(
 ) {
     let mut blocks = vec![];
     let mut predecessors = HashMap::new();
+    let mut visited = HashSet::<RcEquality<BlockRef>>::new();
 
-    fn explore(
-        pos: BlockRef,
-        blocks: &mut Vec<BlockRef>,
-        predecessors: &mut BlockDataLookup<Vec<BlockRef>>,
-        visited: &mut HashSet<RcEquality<BlockRef>>,
-    ) {
-        if visited.insert(pos.clone().into()) {
-            for dst in (*pos).borrow().exit.dests() {
-                predecessors
-                    .entry(dst.clone().into())
-                    .or_insert(vec![])
-                    .push(pos.clone());
-                explore(dst, blocks, predecessors, visited);
+    explore(
+        root,
+        |pos| {
+            if visited.insert(pos.clone().into()) {
+                (*pos)
+                    .borrow()
+                    .exit
+                    .dests()
+                    .into_iter()
+                    .map(|dst| {
+                        predecessors
+                            .entry(dst.clone().into())
+                            .or_insert(vec![])
+                            .push(pos.clone());
+                        dst
+                    })
+                    .collect_vec()
+            } else {
+                vec![]
             }
+        },
+        |pos, _| {
             blocks.push(pos);
-        }
-    }
+        },
+    );
 
-    explore(root, &mut blocks, &mut predecessors, &mut HashSet::new());
     (
         blocks.clone().into_boxed_slice(),
         blocks
@@ -58,7 +68,7 @@ pub fn find_immediate_dominators(
     index_lookup: &BlockDataLookup<usize>,
     predecessors: &BlockDataLookup<Vec<BlockRef>>,
 ) -> BlockDataLookup<BlockRef> {
-    let mut dominators = HashMap::new();
+    let mut dominators = BlockDataLookup::new();
     dominators.insert(start_block.clone().into(), start_block);
     let mut changed = true;
     while changed {
@@ -124,7 +134,7 @@ pub fn find_immediately_dominated(
     blocks: &[BlockRef],
     dominators: &BlockDataLookup<BlockRef>,
 ) -> BlockDataLookup<Vec<BlockRef>> {
-    let mut dominated = HashMap::new();
+    let mut dominated = BlockDataLookup::new();
     for block in blocks {
         let dom = dominators
             .get(&block.clone().into())
@@ -146,7 +156,7 @@ pub fn dominance_frontiers(
     predecessors: &BlockDataLookup<Vec<BlockRef>>,
     dominators: &BlockDataLookup<BlockRef>,
 ) -> BlockDataLookup<Vec<BlockRef>> {
-    let mut frontiers = HashMap::new();
+    let mut frontiers = BlockDataLookup::new();
     for block in blocks {
         if let Some(preds) = predecessors.get(&block.clone().into()) {
             if preds.len() > 1 {
