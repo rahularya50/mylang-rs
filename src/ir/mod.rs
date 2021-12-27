@@ -53,6 +53,5 @@ pub fn gen_ssa(expr: &mut Expr) -> Result<Function<VirtualRegisterLValue, SSABlo
 
     println!("{func}");
 
-    // TODO: actually bring it into SSA form!
     Ok(func)
 }
