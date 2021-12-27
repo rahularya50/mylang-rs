@@ -158,7 +158,7 @@ pub fn backfill_ssa_phis(
                         dest: VirtualRegisterLValue(dest),
                     } = phi;
                     let var = dest_phi_vars
-                        .get(&dest)
+                        .get(dest)
                         .expect("all phi blocks must have a reverse var mapping");
                     if let Some(src_reg) = src_frame.lookup(var) {
                         srcs.push((src_reg, Rc::downgrade(src_ssa_block)));

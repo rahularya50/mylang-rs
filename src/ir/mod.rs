@@ -1,7 +1,4 @@
-use std::borrow::Borrow;
-
 use anyhow::Result;
-use itertools::Itertools;
 
 use self::dominance::{find_immediate_dominators, sort_blocks_postorder};
 use self::gen::gen_expr;
@@ -43,7 +40,6 @@ pub fn gen_ssa(expr: &mut Expr) -> Result<Function<VirtualRegisterLValue, SSABlo
     let frontiers = dominance_frontiers(&sorted_blocks, &predecessors, &dominators);
 
     let variable_defns = defining_blocks_for_variables(&sorted_blocks);
-    println!("{}", func);
 
     let mut func = Function::new();
     let phis = ssa_phis(&mut func, &variable_defns, &frontiers);
@@ -52,13 +48,10 @@ pub fn gen_ssa(expr: &mut Expr) -> Result<Function<VirtualRegisterLValue, SSABlo
     blocks.reverse();
 
     let ssa_blocks = alloc_ssa_blocks(&mut func, &blocks);
-    // println!("{}", ssa_blocks.values().map(|b| (**b).borrow()).join(","));
 
     let (ssa_frames, ssa_phi_vars) =
         populate_ssa_blocks(&mut func, start_block, phis, &dominated, &ssa_blocks);
     backfill_ssa_phis(&blocks, &ssa_blocks, &ssa_frames, &ssa_phi_vars);
-
-    println!("{}", func);
 
     Ok(func)
 }
