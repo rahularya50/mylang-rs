@@ -102,7 +102,7 @@ pub fn populate_ssa_blocks<T>(
             for inst in block.borrow().instructions.iter() {
                 let rhs = inst
                     .rhs
-                    .replace_regs(frame)
+                    .map_reg_types(frame)
                     .expect("all RHS registers should be defined in a dominating or phi block");
                 let reg @ VirtualRegisterLValue(reg_ref) = func.new_reg();
                 frame.assoc(inst.lhs, reg_ref);
@@ -115,7 +115,7 @@ pub fn populate_ssa_blocks<T>(
             ssa_block.borrow_mut().exit = block
                 .borrow_mut()
                 .exit
-                .replace(frame, ssa_blocks)
+                .map_reg_block_types(frame, ssa_blocks)
                 .expect("all registers and blocks should already be defined/mapped");
 
             (
@@ -156,7 +156,7 @@ pub fn backfill_ssa_phis(
             dest_ssa_block
                 .borrow_mut()
                 .preds
-                .push(Rc::downgrade(src_ssa_block));
+                .insert(Rc::downgrade(src_ssa_block).into());
             if let Some(dest_phi_vars) = phi_vars.get(&dest.as_key()) {
                 dest_ssa_block.borrow_mut().phis.drain_filter(|phi| {
                     let Phi {

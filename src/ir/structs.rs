@@ -1,5 +1,5 @@
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt::{self, Debug, Display, Formatter};
 use std::marker::PhantomData;
 use std::rc::{Rc, Weak};
@@ -114,8 +114,8 @@ impl Display for Block {
 
 #[derive(Debug)]
 pub struct SSABlock {
-    pub(super) debug_index: u16,
-    pub preds: Vec<Weak<RefCell<SSABlock>>>,
+    pub debug_index: u16,
+    pub preds: HashSet<RcEquality<Weak<RefCell<SSABlock>>>>,
     pub phis: Vec<Phi>,
     pub instructions: Vec<Instruction<VirtualRegisterLValue>>,
     pub exit: JumpInstruction<VirtualRegister, SSABlock>,
@@ -123,7 +123,7 @@ pub struct SSABlock {
 
 impl SSABlock {
     pub fn preds(&self) -> impl Iterator<Item = Rc<RefCell<SSABlock>>> + '_ {
-        self.preds.iter().filter_map(|preds| preds.upgrade())
+        self.preds.iter().filter_map(|pred| pred.get_ref().upgrade())
     }
 }
 
@@ -131,7 +131,7 @@ impl BlockWithDebugIndex for SSABlock {
     fn new_with_index(debug_index: u16) -> Self {
         SSABlock {
             debug_index,
-            preds: vec![],
+            preds: HashSet::new(),
             phis: vec![],
             instructions: vec![],
             exit: JumpInstruction::Ret,
@@ -229,7 +229,7 @@ impl Display for Phi {
                     format!(
                         "{} from block {}",
                         reg,
-                        (block.get_ref().upgrade().unwrap()).borrow().debug_index
+                        block.get_ref().upgrade().unwrap().borrow().debug_index
                     )
                 })
                 .join(", ")

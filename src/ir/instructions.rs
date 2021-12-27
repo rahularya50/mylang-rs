@@ -25,7 +25,7 @@ pub enum InstructionRHS<RegType> {
 }
 
 impl<RegType: Eq + Hash + Copy> InstructionRHS<RegType> {
-    pub fn replace_regs<NewRegType: Copy>(
+    pub fn map_reg_types<NewRegType: Copy>(
         &self,
         frame: &Frame<RegType, NewRegType>,
     ) -> Option<InstructionRHS<NewRegType>> {
@@ -99,17 +99,29 @@ pub enum JumpInstruction<RegType, BlockType> {
 }
 
 impl<RegType, BlockType> JumpInstruction<RegType, BlockType> {
-    pub fn dests(&self) -> Vec<Rc<RefCell<BlockType>>> {
-        match self {
+    pub fn dests(&self) -> impl Iterator<Item = &Rc<RefCell<BlockType>>> {
+        (match self {
             JumpInstruction::BranchIfElseZero { conseq, alt, .. } => {
-                vec![conseq.clone(), alt.clone()]
+                vec![conseq, alt]
             }
-            JumpInstruction::UnconditionalJump { dest } => vec![dest.clone()],
+            JumpInstruction::UnconditionalJump { dest } => vec![dest],
             JumpInstruction::Ret => vec![],
-        }
+        })
+        .into_iter()
     }
 
-    pub fn replace<NewRegType: Copy, NewBlockType>(
+    pub fn dests_mut(&mut self) -> impl Iterator<Item = &mut Rc<RefCell<BlockType>>> {
+        (match self {
+            JumpInstruction::BranchIfElseZero { conseq, alt, .. } => {
+                vec![conseq, alt]
+            }
+            JumpInstruction::UnconditionalJump { dest } => vec![dest],
+            JumpInstruction::Ret => vec![],
+        })
+        .into_iter()
+    }
+
+    pub fn map_reg_block_types<NewRegType: Copy, NewBlockType>(
         &self,
         frame: &Frame<RegType, NewRegType>,
         block_lookup: &HashMap<RcEquality<Rc<RefCell<BlockType>>>, Rc<RefCell<NewBlockType>>>,

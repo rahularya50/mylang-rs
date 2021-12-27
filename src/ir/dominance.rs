@@ -40,7 +40,7 @@ pub fn sort_blocks_postorder(
                                 .entry(dst.clone().into())
                                 .or_insert(vec![])
                                 .push(pos.clone());
-                            dst
+                            dst.clone()
                         })
                         .collect_vec(),
                     true,
