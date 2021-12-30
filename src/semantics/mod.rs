@@ -41,12 +41,10 @@ pub enum Operator {
 }
 
 impl Operator {
-    fn is_variadic(&self) -> bool {
+    fn is_variadic(self) -> bool {
         match self {
-            Operator::Add => true,
-            Operator::Mul => true,
-            Operator::Sub => false,
-            Operator::Div => false,
+            Operator::Add | Operator::Mul => true,
+            Operator::Sub | Operator::Div => false,
         }
     }
 }

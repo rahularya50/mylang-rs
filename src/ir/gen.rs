@@ -22,14 +22,13 @@ pub fn gen_expr(
             if frame.lookup(&name).is_some() {
                 // this is a language-level requirement, not a limitation of the codegen
                 bail!("variable shadowing is not permitted")
-            } else {
-                let (reg, block) = gen_expr(value, func, frame, loops, block)?;
-                frame.assoc(
-                    name.to_string(),
-                    reg.context("cannot use a statement as the RHS of a declaration")?,
-                );
-                (reg, block)
             }
+            let (reg, block) = gen_expr(value, func, frame, loops, block)?;
+            frame.assoc(
+                (*name).to_string(),
+                reg.context("cannot use a statement as the RHS of a declaration")?,
+            );
+            (reg, block)
         }
         Expr::VarAccess(name) => (
             Some(frame.lookup(name).context("variable not found in scope")?),

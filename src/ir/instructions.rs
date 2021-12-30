@@ -47,6 +47,32 @@ impl<RegType: Eq + Hash + Copy> InstructionRHS<RegType> {
             },
         })
     }
+
+    pub fn regs(&self) -> impl Iterator<Item = &RegType> {
+        (match self {
+            InstructionRHS::ArithmeticOperation {
+                operator: _,
+                arg1,
+                arg2,
+            } => vec![arg1, arg2],
+            InstructionRHS::LoadIntegerLiteral { value: _ } => vec![],
+            InstructionRHS::Move { src } => vec![src],
+        })
+        .into_iter()
+    }
+
+    pub fn regs_mut(&mut self) -> impl Iterator<Item = &mut RegType> {
+        (match self {
+            InstructionRHS::ArithmeticOperation {
+                operator: _,
+                arg1,
+                arg2,
+            } => vec![arg1, arg2],
+            InstructionRHS::LoadIntegerLiteral { value: _ } => vec![],
+            InstructionRHS::Move { src } => vec![src],
+        })
+        .into_iter()
+    }
 }
 
 #[derive(Debug)]
@@ -99,6 +125,28 @@ pub enum JumpInstruction<RegType, BlockType> {
 }
 
 impl<RegType, BlockType> JumpInstruction<RegType, BlockType> {
+    pub fn srcs(&self) -> impl Iterator<Item = &RegType> {
+        (match self {
+            JumpInstruction::BranchIfElseZero { pred, .. } => {
+                vec![pred]
+            }
+            JumpInstruction::UnconditionalJump { dest: _ } | JumpInstruction::Ret(None) => vec![],
+            JumpInstruction::Ret(Some(out)) => vec![out],
+        })
+        .into_iter()
+    }
+
+    pub fn srcs_mut(&mut self) -> impl Iterator<Item = &mut RegType> {
+        (match self {
+            JumpInstruction::BranchIfElseZero { pred, .. } => {
+                vec![pred]
+            }
+            JumpInstruction::UnconditionalJump { dest: _ } | JumpInstruction::Ret(None) => vec![],
+            JumpInstruction::Ret(Some(out)) => vec![out],
+        })
+        .into_iter()
+    }
+
     pub fn dests(&self) -> impl Iterator<Item = &Rc<RefCell<BlockType>>> {
         (match self {
             JumpInstruction::BranchIfElseZero { conseq, alt, .. } => {

@@ -38,7 +38,7 @@ pub fn tokenize(stream: &mut Peekable<impl Iterator<Item = char>>) -> Result<Vec
                     stream.next();
                 }
                 if let Ok(val) = s.parse() {
-                    out.push(Token::Integer(val))
+                    out.push(Token::Integer(val));
                 } else {
                     out.push(Token::Symbol(s));
                 }

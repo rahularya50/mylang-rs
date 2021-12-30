@@ -11,7 +11,7 @@ use self::ssa_transform::{
     ssa_phis,
 };
 use self::structs::Function;
-pub use self::structs::{SSABlock, VirtualRegister, VirtualRegisterLValue};
+pub use self::structs::{Phi, SSABlock, VirtualRegister, VirtualRegisterLValue};
 use crate::semantics::Expr;
 use crate::utils::frame::Frame;
 

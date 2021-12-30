@@ -42,7 +42,7 @@ impl<RegType, BlockType: BlockWithDebugIndex> Function<RegType, BlockType> {
     }
 
     pub fn blocks(&self) -> impl Iterator<Item = Rc<RefCell<BlockType>>> + '_ {
-        self.blocks.iter().filter_map(|block| block.upgrade())
+        self.blocks.iter().filter_map(std::rc::Weak::upgrade)
     }
 
     pub fn clear_dead_blocks(&mut self) {
@@ -61,7 +61,7 @@ impl<RegType, BlockType: Display> Display for Function<RegType, BlockType> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         for block in &self.blocks {
             if let Some(block) = block.upgrade() {
-                writeln!(f, "{}", block.borrow())?
+                writeln!(f, "{}", block.borrow())?;
             };
         }
         Ok(())

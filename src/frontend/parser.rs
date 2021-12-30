@@ -21,7 +21,7 @@ impl Display for ParseExpr {
                 while let Some(expr) = exprs.next() {
                     expr.fmt(f)?;
                     if exprs.peek().is_some() {
-                        write!(f, " ")?
+                        write!(f, " ")?;
                     }
                 }
                 write!(f, ")")?;

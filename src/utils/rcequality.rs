@@ -38,7 +38,7 @@ impl<T: RcDereferencable> Hash for RcEquality<T> {
     where
         H: Hasher,
     {
-        (self.1).hash(state)
+        (self.1).hash(state);
     }
 }
 

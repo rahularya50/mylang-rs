@@ -18,10 +18,6 @@ pub fn remove_empty_blocks(func: &mut SSAFunction) {
     }) {
         visited.insert(block_to_remove.clone().into());
         if let SSAJumpInstruction::UnconditionalJump { dest } = &block_to_remove.borrow().exit {
-            println!(
-                "Attempting to delete block {}",
-                block_to_remove.borrow().debug_index
-            );
             // we will attempt to delete this block
             // all predecessor nodes will instead jump directly to the dest
             // we have no phi nodes - however, our dest may have phis
@@ -37,13 +33,7 @@ pub fn remove_empty_blocks(func: &mut SSAFunction) {
                 });
 
                 if !risky_phi {
-                    println!(
-                        "Removing edge from block {}->{} and {}->{}",
-                        pred.borrow().debug_index,
-                        block_to_remove.borrow().debug_index,
-                        block_to_remove.borrow().debug_index,
-                        dest.borrow().debug_index,
-                    ); // redirect pred straight to dest
+                    // redirect pred straight to dest
                     for old_dest in pred.borrow_mut().exit.dests_mut() {
                         if old_dest.as_key() == block_to_remove.as_key() {
                             *old_dest = dest.clone();
@@ -64,7 +54,6 @@ pub fn remove_empty_blocks(func: &mut SSAFunction) {
         } else {
             panic!("unexpected")
         }
-        // func.blocks()
     }
     func.clear_dead_blocks();
 }

@@ -18,7 +18,7 @@ pub fn defining_blocks_for_variables(
 ) -> HashMap<VirtualVariable, HashSet<RcEquality<BlockRef>>> {
     let mut out = HashMap::new();
     for block in blocks.iter() {
-        for inst in block.borrow().instructions.iter() {
+        for inst in &block.borrow().instructions {
             out.entry(inst.lhs)
                 .or_insert_with(HashSet::new)
                 .insert(block.clone().into());
@@ -88,7 +88,7 @@ pub fn populate_ssa_blocks<T>(
             // override any variables from dominating nodes using phi nodes
             if let Some(block_phis) = block_phis {
                 let mut block_phi_vars = HashMap::new();
-                for (var, reg @ VirtualRegisterLValue(reg_ref)) in block_phis.into_iter() {
+                for (var, reg @ VirtualRegisterLValue(reg_ref)) in block_phis {
                     frame.assoc(var, reg_ref);
                     ssa_block.borrow_mut().phis.push(Phi {
                         srcs: HashMap::new(),
@@ -99,7 +99,7 @@ pub fn populate_ssa_blocks<T>(
                 phi_vars.insert(block.clone().into(), block_phi_vars);
             }
 
-            for inst in block.borrow().instructions.iter() {
+            for inst in &block.borrow().instructions {
                 let rhs = inst
                     .rhs
                     .map_reg_types(frame)
