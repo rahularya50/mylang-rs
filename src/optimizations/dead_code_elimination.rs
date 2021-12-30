@@ -1,24 +1,24 @@
-
 use std::collections::{HashMap, HashSet};
-
 
 use itertools::Itertools;
 
 use crate::ir::{Phi, SSAFunction, SSAInstruction, SSAJumpInstruction};
 
-
+#[derive(Debug)]
 enum RegisterUsage<'a> {
     Assignment(&'a SSAInstruction),
     Jump(&'a SSAJumpInstruction),
     Phi(&'a Phi),
 }
+
+#[derive(Debug)]
 enum RegisterDefinition<'a> {
     Assignment(&'a SSAInstruction),
     Phi(&'a Phi),
 }
 
 pub fn remove_dead_statements(func: &mut SSAFunction) {
-    let mut live_registers = HashSet::new();
+    let mut initially_live_registers = HashSet::new();
     let mut register_definers = HashMap::new();
     let mut register_users = HashMap::<_, Vec<_>>::new();
     let blocks = func.blocks().collect_vec();
@@ -26,7 +26,7 @@ pub fn remove_dead_statements(func: &mut SSAFunction) {
 
     for block in &blocks {
         for phi in &block.phis {
-            register_definers.insert(&phi.dest, RegisterDefinition::Phi(phi));
+            register_definers.insert(phi.dest.0, RegisterDefinition::Phi(phi));
             for reg in phi.srcs.values() {
                 register_users
                     .entry(*reg)
@@ -35,7 +35,7 @@ pub fn remove_dead_statements(func: &mut SSAFunction) {
             }
         }
         for inst in &block.instructions {
-            register_definers.insert(&inst.lhs, RegisterDefinition::Assignment(inst));
+            register_definers.insert(inst.lhs.0, RegisterDefinition::Assignment(inst));
             for reg in inst.rhs.regs() {
                 register_users
                     .entry(*reg)
@@ -49,14 +49,38 @@ pub fn remove_dead_statements(func: &mut SSAFunction) {
                 .or_default()
                 .push(RegisterUsage::Jump(&block.exit));
         }
-        if let SSAJumpInstruction::Ret(Some(reg)) = block.exit {
-            live_registers.insert(reg);
+        for reg in block.exit.srcs() {
+            initially_live_registers.insert(reg);
         }
     }
 
-    let mut registers_to_process = live_registers.iter().copied().collect_vec();
+    let mut registers_to_process = initially_live_registers.into_iter().copied().collect_vec();
+    let mut processed_registers = HashSet::new();
 
     while let Some(next_reg) = registers_to_process.pop() {
-        for _user in register_users.get(&next_reg).unwrap_or(&vec![]) {}
+        if processed_registers.insert(next_reg) {
+            let defn = register_definers.get(&next_reg).unwrap();
+            match defn {
+                RegisterDefinition::Assignment(inst) => {
+                    registers_to_process.extend(inst.rhs.regs().copied())
+                }
+                RegisterDefinition::Phi(phi) => {
+                    registers_to_process.extend(phi.srcs.values().copied())
+                }
+            }
+        }
+    }
+
+    drop(blocks); // so we can safely mutate!
+
+    for block in func.blocks() {
+        block
+            .borrow_mut()
+            .phis
+            .retain(|phi| processed_registers.contains(&phi.dest.0));
+        block
+            .borrow_mut()
+            .instructions
+            .retain(|inst| processed_registers.contains(&inst.lhs.0));
     }
 }
