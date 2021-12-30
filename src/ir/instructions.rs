@@ -95,7 +95,7 @@ pub enum JumpInstruction<RegType, BlockType> {
     UnconditionalJump {
         dest: Rc<RefCell<BlockType>>,
     },
-    Ret,
+    Ret(Option<RegType>),
 }
 
 impl<RegType, BlockType> JumpInstruction<RegType, BlockType> {
@@ -105,7 +105,7 @@ impl<RegType, BlockType> JumpInstruction<RegType, BlockType> {
                 vec![conseq, alt]
             }
             JumpInstruction::UnconditionalJump { dest } => vec![dest],
-            JumpInstruction::Ret => vec![],
+            JumpInstruction::Ret(_) => vec![],
         })
         .into_iter()
     }
@@ -116,7 +116,7 @@ impl<RegType, BlockType> JumpInstruction<RegType, BlockType> {
                 vec![conseq, alt]
             }
             JumpInstruction::UnconditionalJump { dest } => vec![dest],
-            JumpInstruction::Ret => vec![],
+            JumpInstruction::Ret(_) => vec![],
         })
         .into_iter()
     }
@@ -140,7 +140,10 @@ impl<RegType, BlockType> JumpInstruction<RegType, BlockType> {
             JumpInstruction::UnconditionalJump { dest } => JumpInstruction::UnconditionalJump {
                 dest: block_lookup.get(&dest.as_key())?.clone(),
             },
-            JumpInstruction::Ret => JumpInstruction::Ret,
+            JumpInstruction::Ret(val) => JumpInstruction::Ret(match val {
+                Some(val) => Some(frame.lookup(val)?),
+                None => None,
+            }),
         })
     }
 }
@@ -162,7 +165,10 @@ impl<RegType: Display, BlockType: BlockWithDebugIndex> Display
             JumpInstruction::UnconditionalJump { dest } => {
                 write!(f, "jumpto {}", dest.borrow().get_debug_index())
             }
-            JumpInstruction::Ret => write!(f, "ret"),
+            JumpInstruction::Ret(val) => match val {
+                Some(val) => write!(f, "ret {}", val),
+                None => write!(f, "ret"),
+            },
         }
     }
 }

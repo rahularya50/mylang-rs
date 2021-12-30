@@ -92,7 +92,7 @@ impl BlockWithDebugIndex for Block {
         Block {
             debug_index,
             instructions: vec![],
-            exit: JumpInstruction::Ret,
+            exit: JumpInstruction::Ret(None),
         }
     }
 
@@ -134,7 +134,7 @@ impl BlockWithDebugIndex for SSABlock {
             preds: HashSet::new(),
             phis: vec![],
             instructions: vec![],
-            exit: JumpInstruction::Ret,
+            exit: JumpInstruction::Ret(None),
         }
     }
 

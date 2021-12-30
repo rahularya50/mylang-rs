@@ -29,6 +29,7 @@ pub enum Expr {
     Continue,
     IntegerLiteral(i64),
     Noop,
+    Return(Option<Box<Expr>>),
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -124,7 +125,7 @@ fn analyze_break(operands: &[ParseExpr]) -> Result<Expr> {
     if operands.is_empty() {
         Ok(Expr::Break)
     } else {
-        bail!("break expressions take no arguents")
+        bail!("break expressions take no arguments")
     }
 }
 
@@ -132,8 +133,16 @@ fn analyze_continue(operands: &[ParseExpr]) -> Result<Expr> {
     if operands.is_empty() {
         Ok(Expr::Continue)
     } else {
-        bail!("break expressions take no arguents")
+        bail!("continue expressions take no arguments")
     }
+}
+
+fn analyze_return(operands: &[ParseExpr]) -> Result<Expr> {
+    Ok(match operands {
+        [] => Expr::Return(None),
+        [expr] => Expr::Return(Some(Box::new(analyze_expr(expr)?))),
+        _ => bail!("return statements have one optional argument"),
+    })
 }
 
 fn analyze_expr(expr: &ParseExpr) -> Result<Expr> {
@@ -153,6 +162,7 @@ fn analyze_expr(expr: &ParseExpr) -> Result<Expr> {
                     "break" => analyze_break(operands)?,
                     "continue" => analyze_continue(operands)?,
                     "begin" => analyze(operands)?,
+                    "return" => analyze_return(operands)?,
                     _ => bail!("invalid operator in call expression: {}", operator),
                 }
             } else {

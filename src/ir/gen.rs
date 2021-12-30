@@ -180,5 +180,17 @@ pub fn gen_expr(
             };
             (None, func.new_block())
         }
+        Expr::Return(expr) => {
+            let ret = match expr {
+                Some(expr) => {
+                    let ret;
+                    (ret, block) = gen_expr(expr, func, frame, loops, block)?;
+                    ret
+                }
+                None => None,
+            };
+            block.borrow_mut().exit = JumpInstruction::Ret(ret);
+            (None, func.new_block())
+        }
     })
 }
