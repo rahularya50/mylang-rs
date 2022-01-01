@@ -7,6 +7,7 @@ use crate::utils::rcequality::{RcEquality, RcEqualityKey};
 
 pub fn remove_empty_blocks(func: &mut SSAFunction) {
     let mut visited = HashSet::<RcEquality<Rc<RefCell<SSABlock>>>>::new();
+    let mut new_start_block = func.start_block.clone();
     while let Some(block_to_remove) = func.blocks().find(|block| {
         !visited.contains(&block.as_key())
             && block.borrow().instructions.is_empty()
@@ -32,7 +33,10 @@ pub fn remove_empty_blocks(func: &mut SSAFunction) {
                     phi.srcs.get(&pred.as_key()).map(|reg| reg != block_reg) == Some(false)
                 });
 
-                if !risky_phi {
+                if !risky_phi
+                    && pred.as_key() != block_to_remove.as_key()
+                    && block_to_remove.as_key() != dest.as_key()
+                {
                     // redirect pred straight to dest
                     for old_dest in pred.borrow_mut().exit.dests_mut() {
                         if old_dest.as_key() == block_to_remove.as_key() {
@@ -51,9 +55,14 @@ pub fn remove_empty_blocks(func: &mut SSAFunction) {
                     dest.borrow_mut().preds.insert(Rc::downgrade(&pred).into());
                 }
             }
+            if block_to_remove.as_key() == func.start_block.as_key() {
+                // make dest the new start block
+                new_start_block = dest.clone();
+            }
         } else {
             panic!("unexpected")
         }
     }
+    func.start_block = new_start_block;
     func.clear_dead_blocks();
 }

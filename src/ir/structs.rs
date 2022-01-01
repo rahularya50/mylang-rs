@@ -57,8 +57,13 @@ impl<RegType: RegisterLValue, BlockType> Function<RegType, BlockType> {
     }
 }
 
-impl<RegType, BlockType: Display> Display for Function<RegType, BlockType> {
+impl<RegType, BlockType: Display + BlockWithDebugIndex> Display for Function<RegType, BlockType> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        writeln!(
+            f,
+            "start: {}\n",
+            self.start_block.borrow().get_debug_index()
+        )?;
         for block in &self.blocks {
             if let Some(block) = block.upgrade() {
                 writeln!(f, "{}", block.borrow())?;
@@ -123,7 +128,9 @@ pub struct SSABlock {
 
 impl SSABlock {
     pub fn preds(&self) -> impl Iterator<Item = Rc<RefCell<SSABlock>>> + '_ {
-        self.preds.iter().filter_map(|pred| pred.get_ref().upgrade())
+        self.preds
+            .iter()
+            .filter_map(|pred| pred.get_ref().upgrade())
     }
 }
 

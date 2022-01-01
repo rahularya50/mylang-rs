@@ -62,10 +62,10 @@ pub fn remove_dead_statements(func: &mut SSAFunction) {
             let defn = register_definers.get(&next_reg).unwrap();
             match defn {
                 RegisterDefinition::Assignment(inst) => {
-                    registers_to_process.extend(inst.rhs.regs().copied())
+                    registers_to_process.extend(inst.rhs.regs().copied());
                 }
                 RegisterDefinition::Phi(phi) => {
-                    registers_to_process.extend(phi.srcs.values().copied())
+                    registers_to_process.extend(phi.srcs.values().copied());
                 }
             }
         }
