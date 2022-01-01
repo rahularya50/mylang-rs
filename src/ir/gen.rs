@@ -191,5 +191,13 @@ pub fn gen_expr(
             block.borrow_mut().exit = JumpInstruction::Ret(ret);
             (None, func.new_block())
         }
+        Expr::Input => {
+            let out = func.new_reg();
+            block
+                .borrow_mut()
+                .instructions
+                .push(Instruction::new(out, InstructionRHS::ReadInput));
+            (Some(out), block)
+        }
     })
 }

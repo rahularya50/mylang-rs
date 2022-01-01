@@ -30,6 +30,7 @@ pub enum Expr {
     IntegerLiteral(i64),
     Noop,
     Return(Option<Box<Expr>>),
+    Input,
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -143,6 +144,14 @@ fn analyze_return(operands: &[ParseExpr]) -> Result<Expr> {
     })
 }
 
+fn analyze_input(operands: &[ParseExpr]) -> Result<Expr> {
+    if operands.is_empty() {
+        Ok(Expr::Input)
+    } else {
+        bail!("input expressions take no arguments")
+    }
+}
+
 fn analyze_expr(expr: &ParseExpr) -> Result<Expr> {
     Ok(match expr {
         ParseExpr::Integer(val) => Expr::IntegerLiteral(*val),
@@ -161,6 +170,7 @@ fn analyze_expr(expr: &ParseExpr) -> Result<Expr> {
                     "continue" => analyze_continue(operands)?,
                     "begin" => analyze(operands)?,
                     "return" => analyze_return(operands)?,
+                    "input" => analyze_input(operands)?,
                     _ => bail!("invalid operator in call expression: {}", operator),
                 }
             } else {

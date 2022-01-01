@@ -22,6 +22,7 @@ pub enum InstructionRHS<RegType> {
     Move {
         src: RegType,
     },
+    ReadInput,
 }
 
 impl<RegType: Eq + Hash + Copy> InstructionRHS<RegType> {
@@ -45,6 +46,7 @@ impl<RegType: Eq + Hash + Copy> InstructionRHS<RegType> {
             InstructionRHS::Move { src } => InstructionRHS::Move {
                 src: frame.lookup(&src)?,
             },
+            InstructionRHS::ReadInput => InstructionRHS::ReadInput,
         })
     }
 
@@ -57,6 +59,7 @@ impl<RegType: Eq + Hash + Copy> InstructionRHS<RegType> {
             } => vec![arg1, arg2],
             InstructionRHS::LoadIntegerLiteral { value: _ } => vec![],
             InstructionRHS::Move { src } => vec![src],
+            InstructionRHS::ReadInput => vec![],
         })
         .into_iter()
     }
@@ -70,6 +73,7 @@ impl<RegType: Eq + Hash + Copy> InstructionRHS<RegType> {
             } => vec![arg1, arg2],
             InstructionRHS::LoadIntegerLiteral { value: _ } => vec![],
             InstructionRHS::Move { src } => vec![src],
+            InstructionRHS::ReadInput => vec![],
         })
         .into_iter()
     }
@@ -106,6 +110,9 @@ where
             }
             InstructionRHS::Move { src } => {
                 write!(f, "{src}")
+            }
+            InstructionRHS::ReadInput => {
+                write!(f, "input()")
             }
         }
     }
