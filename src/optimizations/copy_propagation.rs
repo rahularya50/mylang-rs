@@ -7,10 +7,7 @@ use crate::utils::union_find::UnionFind;
 
 fn make_reg_replacer(regs: &UnionFind<VirtualRegister>) -> impl Fn(&mut VirtualRegister) + '_ {
     move |reg| {
-        *reg = regs
-            .find_root(&reg)
-            .map(|node| node.borrow().value)
-            .unwrap_or(*reg)
+        *reg = regs.find_root(reg).map_or(*reg, |node| node.borrow().value);
     }
 }
 

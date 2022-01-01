@@ -166,12 +166,10 @@ pub fn backfill_ssa_phis(
                     let var = dest_phi_vars
                         .get(dest)
                         .expect("all phi blocks must have a reverse var mapping");
-                    if let Some(src_reg) = src_frame.lookup(var) {
+                    src_frame.lookup(var).map_or(true, |src_reg| {
                         srcs.insert(Rc::downgrade(src_ssa_block).into(), src_reg);
                         false
-                    } else {
-                        true
-                    }
+                    })
                 });
             }
         }

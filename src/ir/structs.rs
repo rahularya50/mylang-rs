@@ -21,7 +21,7 @@ pub struct Function<RegType, BlockType> {
 impl<RegType, BlockType: BlockWithDebugIndex> Function<RegType, BlockType> {
     pub fn new() -> Self {
         let start_block = Rc::new(RefCell::new(BlockType::new_with_index(0)));
-        Function {
+        Self {
             reg_counter: 0,
             block_counter: None,
             start_block: start_block.clone(),
@@ -94,7 +94,7 @@ pub type BlockRef = Rc<RefCell<Block>>;
 
 impl BlockWithDebugIndex for Block {
     fn new_with_index(debug_index: u16) -> Self {
-        Block {
+        Self {
             debug_index,
             instructions: vec![],
             exit: JumpInstruction::Ret(None),
@@ -127,7 +127,7 @@ pub struct SSABlock {
 }
 
 impl SSABlock {
-    pub fn preds(&self) -> impl Iterator<Item = Rc<RefCell<SSABlock>>> + '_ {
+    pub fn preds(&self) -> impl Iterator<Item = Rc<RefCell<Self>>> + '_ {
         self.preds
             .iter()
             .filter_map(|pred| pred.get_ref().upgrade())
@@ -136,7 +136,7 @@ impl SSABlock {
 
 impl BlockWithDebugIndex for SSABlock {
     fn new_with_index(debug_index: u16) -> Self {
-        SSABlock {
+        Self {
             debug_index,
             preds: HashSet::new(),
             phis: vec![],
@@ -177,10 +177,10 @@ pub struct VirtualVariable {
 }
 
 impl RegisterLValue for VirtualVariable {
-    type RValue = VirtualVariable;
+    type RValue = Self;
 
     fn new(index: u16) -> Self {
-        VirtualVariable { index }
+        Self { index }
     }
 }
 
@@ -208,7 +208,7 @@ impl RegisterLValue for VirtualRegisterLValue {
     type RValue = VirtualRegister;
 
     fn new(index: u16) -> Self {
-        VirtualRegisterLValue(VirtualRegister { index })
+        Self(VirtualRegister { index })
     }
 }
 

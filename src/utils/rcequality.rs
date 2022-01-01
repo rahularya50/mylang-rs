@@ -12,14 +12,14 @@ pub trait RcDereferencable {
 impl<T> RcDereferencable for Rc<T> {
     type Contained = T;
     fn as_ptr(&self) -> *const T {
-        Rc::as_ptr(self)
+        Self::as_ptr(self)
     }
 }
 
 impl<T> RcDereferencable for Weak<T> {
     type Contained = T;
     fn as_ptr(&self) -> *const T {
-        Weak::as_ptr(self)
+        Self::as_ptr(self)
     }
 }
 #[derive(Debug)]
@@ -42,8 +42,8 @@ impl<T: RcDereferencable> Hash for RcEquality<T> {
     }
 }
 
-impl<T: RcDereferencable> PartialEq<RcEquality<T>> for RcEquality<T> {
-    fn eq(&self, other: &RcEquality<T>) -> bool {
+impl<T: RcDereferencable> PartialEq<Self> for RcEquality<T> {
+    fn eq(&self, other: &Self) -> bool {
         std::ptr::eq(self.1, other.1)
     }
 }
@@ -59,7 +59,7 @@ impl<T: RcDereferencable> Borrow<*const T::Contained> for RcEquality<T> {
 impl<T: RcDereferencable> From<T> for RcEquality<T> {
     fn from(x: T) -> Self {
         let ptr = x.as_ptr();
-        RcEquality(x, ptr)
+        Self(x, ptr)
     }
 }
 

@@ -87,7 +87,7 @@ pub struct Instruction<LValue: RegisterLValue> {
 
 impl<LValue: RegisterLValue> Instruction<LValue> {
     pub fn new(lhs: LValue, rhs: InstructionRHS<LValue::RValue>) -> Self {
-        Instruction { lhs, rhs }
+        Self { lhs, rhs }
     }
 }
 

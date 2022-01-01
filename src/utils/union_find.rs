@@ -17,7 +17,7 @@ pub struct UnionFindNode<T> {
 
 impl<T: Eq + Hash + Clone> UnionFind<T> {
     pub fn new() -> Self {
-        UnionFind {
+        Self {
             lookup: HashMap::new(),
         }
     }
@@ -52,9 +52,9 @@ impl<T: Eq + Hash + Clone> UnionFind<T> {
             return;
         }
         if a.borrow().size > b.borrow().size {
-            self.link_nodes(a, b);
+            Self::link_nodes(a, &mut b.borrow_mut());
         } else {
-            self.link_nodes(b, a);
+            Self::link_nodes(b, &mut a.borrow_mut());
         }
     }
 
@@ -69,18 +69,11 @@ impl<T: Eq + Hash + Clone> UnionFind<T> {
             .get(&child)
             .cloned()
             .unwrap_or_else(|| self.insert(child));
-        self.link_nodes(parent, child);
+        Self::link_nodes(parent, &mut child.borrow_mut());
     }
 
-    fn link_nodes(
-        &mut self,
-        parent: Rc<RefCell<UnionFindNode<T>>>,
-        child: Rc<RefCell<UnionFindNode<T>>>,
-    ) {
-        let mut parent_mut = parent.borrow_mut();
-        let mut child_mut = child.borrow_mut();
-        parent_mut.size += child_mut.size;
-        drop(parent_mut);
-        child_mut.parent = Some(parent);
+    fn link_nodes(parent: Rc<RefCell<UnionFindNode<T>>>, child: &mut UnionFindNode<T>) {
+        parent.borrow_mut().size += child.size;
+        child.parent = Some(parent);
     }
 }

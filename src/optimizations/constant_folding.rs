@@ -13,7 +13,7 @@ enum RegisterValue {
     Variable,
 }
 
-fn unify(a: Option<RegisterValue>, b: Option<RegisterValue>) -> Option<RegisterValue> {
+const fn unify(a: Option<RegisterValue>, b: Option<RegisterValue>) -> Option<RegisterValue> {
     match (a, b) {
         (None, b) => b,
         (a, None) => a,
