@@ -65,7 +65,7 @@ fn evaluate(
     })
 }
 
-pub fn constant_propagation(func: &mut SSAFunction) {
+pub fn constant_folding(func: &mut SSAFunction) {
     let mut visited_blocks = HashSet::new();
     let mut known_values = HashMap::new();
     let mut blocks_to_explore = vec![func.start_block.clone()];
@@ -94,9 +94,15 @@ pub fn constant_propagation(func: &mut SSAFunction) {
             }
         }
 
+        if changed {
+            // we need to re-explore all blocks reachable from our current node, since stuff has changed
+            // ideally we'd only re-explore blocks using the affected registers, but this is good enough
+            visited_blocks.drain();
+        }
+
         let not_previously_visited = visited_blocks.insert(block_ref.as_key());
 
-        if changed || not_previously_visited {
+        if not_previously_visited {
             match &block.exit {
                 SSAJumpInstruction::BranchIfElseZero { pred, conseq, alt } => {
                     match known_values[pred] {

@@ -1,11 +1,11 @@
 use self::block_merging::remove_empty_blocks;
-use self::constant_propagation::constant_propagation;
+use self::constant_folding::constant_folding;
 use self::dead_code_elimination::remove_dead_statements;
 use self::simplify_jumps::simplify_jumps;
 use crate::ir::SSAFunction;
 
 mod block_merging;
-mod constant_propagation;
+mod constant_folding;
 mod dead_code_elimination;
 mod simplify_jumps;
 
@@ -17,6 +17,6 @@ pub fn optimize(func: &mut SSAFunction) {
         remove_dead_statements(func);
         remove_empty_blocks(func);
         simplify_jumps(func);
-        constant_propagation(func);
+        constant_folding(func);
     }
 }
