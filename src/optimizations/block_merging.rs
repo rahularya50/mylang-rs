@@ -60,7 +60,7 @@ pub fn remove_empty_blocks(func: &mut SSAFunction) {
                 new_start_block = dest.clone();
             }
         } else {
-            panic!("unexpected")
+            unreachable!();
         }
     }
     func.start_block = new_start_block;
