@@ -1,0 +1,11 @@
+(define a 1)
+(loop
+    (if 1 (return 10))
+    (define b a)
+    (if 1 (return 10))
+    (define c 3)
+    (if 1 (return 10))
+    (set a 2)
+    (if (input) (continue))
+    (return (+ a b c))
+)

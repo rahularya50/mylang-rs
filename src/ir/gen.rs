@@ -23,12 +23,16 @@ pub fn gen_expr(
                 // this is a language-level requirement, not a limitation of the codegen
                 bail!("variable shadowing is not permitted")
             }
-            let (reg, block) = gen_expr(value, func, frame, loops, block)?;
-            frame.assoc(
-                (*name).to_string(),
-                reg.context("cannot use a statement as the RHS of a declaration")?,
-            );
-            (reg, block)
+            let (src, block) = gen_expr(value, func, frame, loops, block)?;
+            let dst = func.new_reg();
+            frame.assoc((*name).to_string(), dst);
+            block.borrow_mut().instructions.push(Instruction::new(
+                dst,
+                InstructionRHS::Move {
+                    src: src.context("cannot use a statement as the RHS of a declaration")?,
+                },
+            ));
+            (Some(dst), block)
         }
         Expr::VarAccess(name) => (
             Some(frame.lookup(name).context("variable not found in scope")?),

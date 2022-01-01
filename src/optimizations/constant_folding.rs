@@ -96,7 +96,7 @@ pub fn constant_folding(func: &mut SSAFunction) {
 
         if changed {
             // we need to re-explore all blocks reachable from our current node, since stuff has changed
-            // ideally we'd only re-explore blocks using the affected registers, but this is good enough
+            // ideally we'd only re-explore blocks that read the affected registers, but this is good enough
             visited_blocks.drain();
         }
 
