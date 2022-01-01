@@ -1,7 +1,9 @@
 #![feature(drain_filter)]
 use std::fs::read_to_string;
+use std::path::PathBuf;
 
 use anyhow::{Context, Result};
+use clap::Parser;
 
 use crate::frontend::parse;
 use crate::ir::gen_ssa;
@@ -14,8 +16,18 @@ mod optimizations;
 mod semantics;
 mod utils;
 
+#[derive(Parser)]
+#[clap(about, version, author)]
+struct Args {
+    /// The file to compile
+    #[clap(short, long, required = true)]
+    target: Option<PathBuf>,
+}
+
 fn main() -> Result<()> {
-    let contents = read_to_string("test.lang").context("unable to open source file")?;
+    let args = Args::parse();
+
+    let contents = read_to_string(args.target.unwrap()).context("unable to open source file")?;
     let exprs = parse(&mut contents.chars())?;
     let mut func = analyze(&exprs)?;
 
