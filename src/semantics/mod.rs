@@ -72,8 +72,8 @@ fn analyze_arithop(operator: Operator, operands: &[ParseExpr]) -> Result<Expr> {
     } else if operands.len() == 2 {
         Expr::ArithOp {
             operator,
-            arg1: Box::new(operands.pop().unwrap()),
             arg2: Box::new(operands.pop().unwrap()),
+            arg1: Box::new(operands.pop().unwrap()),
         }
     } else {
         bail!("non-variadic arithops must have exactly two arguments")

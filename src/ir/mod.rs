@@ -80,13 +80,28 @@ pub fn gen_ssa(expr: &mut Expr) -> Result<Function<VirtualRegisterLValue, SSABlo
 
     let variable_defns = defining_blocks_for_variables(&sorted_blocks);
 
+    // println!(
+    //     "{}\n",
+    //     variable_defns
+    //         .iter()
+    //         .map(|(k, v)| {
+    //             format!(
+    //                 "{} defined in blocks [{}]",
+    //                 k,
+    //                 v.iter()
+    //                     .map(|block| block.get_ref().borrow().debug_index)
+    //                     .join(", ")
+    //             )
+    //         })
+    //         .join("\n")
+    // );
+
     let mut func = Function::new();
     let phis = ssa_phis(&mut func, &variable_defns, &frontiers);
 
     // println!(
     //     "{}\n",
-    //     phis
-    //         .iter()
+    //     phis.iter()
     //         .map(|(k, v)| {
     //             format!(
     //                 "phis[{}] = [{}]",

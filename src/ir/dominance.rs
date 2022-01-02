@@ -165,7 +165,7 @@ pub fn dominance_frontiers(
                     let dom = dominators
                         .get(&block.as_key())
                         .expect("block must have dominator");
-                    while pos.as_key() != dom.as_key() && pos.as_key() != block.as_key() {
+                    while pos.as_key() != dom.as_key() {
                         frontiers
                             .entry(pos.clone().into())
                             .or_insert(vec![])
