@@ -4,7 +4,7 @@ use std::mem::take;
 use crate::ir::{
     Phi, SSAFunction, SSAInstruction, SSAInstructionRHS, SSAJumpInstruction, VirtualRegister,
 };
-use crate::semantics::Operator;
+use crate::semantics::{BinaryOperator, UnaryOperator};
 use crate::utils::rcequality::RcEqualityKey;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -39,23 +39,37 @@ fn evaluate(
         RegisterValue::Variable => None,
     };
     Some(match rhs {
-        SSAInstructionRHS::ArithmeticOperation {
-            operator: Operator::Add,
+        SSAInstructionRHS::UnaryOperation {
+            operator: UnaryOperator::Not,
+            arg,
+        } => !get_reg(arg)?,
+        SSAInstructionRHS::BinaryOperation {
+            operator: BinaryOperator::Xor,
+            arg1,
+            arg2,
+        } => get_reg(arg1)? ^ get_reg(arg2)?,
+        SSAInstructionRHS::BinaryOperation {
+            operator: BinaryOperator::And,
+            arg1,
+            arg2,
+        } => get_reg(arg1)? & get_reg(arg2)?,
+        SSAInstructionRHS::BinaryOperation {
+            operator: BinaryOperator::Add,
             arg1,
             arg2,
         } => get_reg(arg1)? + get_reg(arg2)?,
-        SSAInstructionRHS::ArithmeticOperation {
-            operator: Operator::Sub,
+        SSAInstructionRHS::BinaryOperation {
+            operator: BinaryOperator::Sub,
             arg1,
             arg2,
         } => get_reg(arg1)? - get_reg(arg2)?,
-        SSAInstructionRHS::ArithmeticOperation {
-            operator: Operator::Mul,
+        SSAInstructionRHS::BinaryOperation {
+            operator: BinaryOperator::Mul,
             arg1,
             arg2,
         } => get_reg(arg1)? * get_reg(arg2)?,
-        SSAInstructionRHS::ArithmeticOperation {
-            operator: Operator::Div,
+        SSAInstructionRHS::BinaryOperation {
+            operator: BinaryOperator::Div,
             arg1: _,
             arg2: _,
         } => return None,

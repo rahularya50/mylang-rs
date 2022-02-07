@@ -14,7 +14,7 @@ pub enum Expr {
     },
     VarAccess(String),
     ArithOp {
-        operator: Operator,
+        operator: BinaryOperator,
         arg1: Box<Expr>,
         arg2: Box<Expr>,
     },
@@ -31,26 +31,37 @@ pub enum Expr {
     Noop,
     Return(Option<Box<Expr>>),
     Input,
+    UnaryOp{
+        operator: UnaryOperator, 
+        arg: Box<Expr>
+    },
 }
 
 #[derive(Copy, Clone, Debug)]
-pub enum Operator {
+pub enum UnaryOperator {
+    Not,
+}
+
+#[derive(Copy, Clone, Debug)]
+pub enum BinaryOperator {
     Add,
     Mul,
     Sub,
     Div,
+    Xor,
+    And,
 }
 
-impl Operator {
+impl BinaryOperator {
     const fn is_variadic(self) -> bool {
         match self {
-            Operator::Add | Operator::Mul => true,
-            Operator::Sub | Operator::Div => false,
+            BinaryOperator::Add | BinaryOperator::Mul | BinaryOperator::And | BinaryOperator::Xor => true,
+            BinaryOperator::Sub | BinaryOperator::Div  => false,
         }
     }
 }
 
-fn nest_varargs(operator: Operator, mut args: Vec<Expr>) -> Result<Expr> {
+fn nest_varargs(operator: BinaryOperator, mut args: Vec<Expr>) -> Result<Expr> {
     let first = args
         .pop()
         .context("arithmetic operations require at least one argument")?;
@@ -65,7 +76,7 @@ fn nest_varargs(operator: Operator, mut args: Vec<Expr>) -> Result<Expr> {
     })
 }
 
-fn analyze_arithop(operator: Operator, operands: &[ParseExpr]) -> Result<Expr> {
+fn analyze_arithop(operator: BinaryOperator, operands: &[ParseExpr]) -> Result<Expr> {
     let mut operands = operands.iter().map(analyze_expr).collect::<Result<_>>()?;
     Ok(if operator.is_variadic() {
         nest_varargs(operator, operands)?
@@ -152,16 +163,26 @@ fn analyze_input(operands: &[ParseExpr]) -> Result<Expr> {
     }
 }
 
+fn analyze_unary_operator(operator: UnaryOperator, operands: &[ParseExpr]) -> Result<Expr> {
+    Ok(match operands {
+        [expr] => Expr::UnaryOp {operator, arg: Box::new(analyze_expr(expr)?)},
+        _ => bail!("logical not statements have one argument"),
+    })
+}
+
 fn analyze_expr(expr: &ParseExpr) -> Result<Expr> {
     Ok(match expr {
         ParseExpr::Integer(val) => Expr::IntegerLiteral(*val),
         ParseExpr::List(call_expr) => {
             if let Some((ParseExpr::Symbol(operator), operands)) = call_expr.split_first() {
                 match operator.as_str() {
-                    "+" => analyze_arithop(Operator::Add, operands)?,
-                    "*" => analyze_arithop(Operator::Mul, operands)?,
-                    "-" => analyze_arithop(Operator::Sub, operands)?,
-                    "/" => analyze_arithop(Operator::Div, operands)?,
+                    "+" => analyze_arithop(BinaryOperator::Add, operands)?,
+                    "*" => analyze_arithop(BinaryOperator::Mul, operands)?,
+                    "-" => analyze_arithop(BinaryOperator::Sub, operands)?,
+                    "/" => analyze_arithop(BinaryOperator::Div, operands)?,
+                    "^" => analyze_arithop(BinaryOperator::Xor, operands)?,
+                    "&" => analyze_arithop(BinaryOperator::And, operands)?,
+                    "~" => analyze_unary_operator(UnaryOperator::Not, operands)?,
                     "if" => analyze_if(operands)?,
                     "define" => analyze_define(operands)?,
                     "set" => analyze_assign(operands)?,

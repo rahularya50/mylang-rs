@@ -5,14 +5,18 @@ use std::hash::Hash;
 use std::rc::Rc;
 
 use super::structs::{BlockWithDebugIndex, RegisterLValue};
-use crate::semantics::Operator;
+use crate::semantics::{BinaryOperator, UnaryOperator};
 use crate::utils::frame::Frame;
 use crate::utils::rcequality::{RcEquality, RcEqualityKey};
 
 #[derive(Debug)]
 pub enum InstructionRHS<RegType> {
-    ArithmeticOperation {
-        operator: Operator,
+    UnaryOperation {
+        operator: UnaryOperator,
+        arg: RegType,
+    },
+    BinaryOperation {
+        operator: BinaryOperator,
         arg1: RegType,
         arg2: RegType,
     },
@@ -31,11 +35,18 @@ impl<RegType: Eq + Hash + Copy> InstructionRHS<RegType> {
         frame: &Frame<RegType, NewRegType>,
     ) -> Option<InstructionRHS<NewRegType>> {
         Some(match *self {
-            InstructionRHS::ArithmeticOperation {
+            InstructionRHS::UnaryOperation {
+                operator,
+                arg,
+            } => InstructionRHS::UnaryOperation {
+                operator,
+                arg: frame.lookup(&arg)?,
+            },
+            InstructionRHS::BinaryOperation {
                 operator,
                 arg1,
                 arg2,
-            } => InstructionRHS::ArithmeticOperation {
+            } => InstructionRHS::BinaryOperation {
                 operator,
                 arg1: frame.lookup(&arg1)?,
                 arg2: frame.lookup(&arg2)?,
@@ -52,7 +63,11 @@ impl<RegType: Eq + Hash + Copy> InstructionRHS<RegType> {
 
     pub fn regs(&self) -> impl Iterator<Item = &RegType> {
         (match self {
-            InstructionRHS::ArithmeticOperation {
+            InstructionRHS::UnaryOperation {
+                operator: _,
+                arg,
+            } => vec![arg],
+            InstructionRHS::BinaryOperation {
                 operator: _,
                 arg1,
                 arg2,
@@ -66,7 +81,11 @@ impl<RegType: Eq + Hash + Copy> InstructionRHS<RegType> {
 
     pub fn regs_mut(&mut self) -> impl Iterator<Item = &mut RegType> {
         (match self {
-            InstructionRHS::ArithmeticOperation {
+            InstructionRHS::UnaryOperation {
+                operator: _,
+                arg,
+            } => vec![arg],
+            InstructionRHS::BinaryOperation {
                 operator: _,
                 arg1,
                 arg2,
@@ -98,7 +117,13 @@ where
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{} = ", self.lhs)?;
         match &self.rhs {
-            InstructionRHS::ArithmeticOperation {
+            InstructionRHS::UnaryOperation {
+                operator,
+                arg,
+            } => {
+                write!(f, "{operator:?} {arg}")
+            }
+            InstructionRHS::BinaryOperation {
                 operator,
                 arg1,
                 arg2,

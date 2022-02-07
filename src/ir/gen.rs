@@ -51,6 +51,21 @@ pub fn gen_expr(
             ));
             (None, block)
         }
+        Expr::UnaryOp {
+            operator,
+            arg,
+        } => {
+            let (arg, block) = gen_expr(arg, func, frame, loops, block)?;
+            let out = func.new_reg();
+            block.borrow_mut().instructions.push(Instruction::new(
+                out,
+                InstructionRHS::UnaryOperation {
+                    operator: *operator,
+                    arg: arg.context("cannot pass a statement as an argument")?,
+                },
+            ));
+            (Some(out), block)
+        }
         Expr::ArithOp {
             operator,
             arg1,
@@ -61,7 +76,7 @@ pub fn gen_expr(
             let out = func.new_reg();
             block.borrow_mut().instructions.push(Instruction::new(
                 out,
-                InstructionRHS::ArithmeticOperation {
+                InstructionRHS::BinaryOperation {
                     operator: *operator,
                     arg1: arg1.context("cannot pass a statement as an argument")?,
                     arg2: arg2.context("cannot pass a statement as an argument")?,
