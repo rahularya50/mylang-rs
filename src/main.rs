@@ -31,9 +31,9 @@ fn main() -> Result<()> {
 
     let contents = read_to_string(args.target.unwrap()).context("unable to open source file")?;
     let exprs = parse(&mut contents.chars())?;
-    let mut program = analyze(&exprs)?;
+    let program = analyze(&exprs)?;
 
-    let mut program = gen_ir(&mut program)?;
+    let mut program = gen_ir(&program)?;
     optimize(&mut program);
 
     println!("{}", program);

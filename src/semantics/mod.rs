@@ -222,7 +222,7 @@ fn analyze_function(exprs: &[ParseExpr]) -> Result<FuncDefinition> {
         bail!("function signatures must begin with the name");
     };
     let args = args
-        .into_iter()
+        .iter()
         .map(|arg| match arg {
             ParseExpr::Symbol(arg) => Some(arg.to_owned()),
             _ => None,
