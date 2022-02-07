@@ -1,4 +1,6 @@
 #![feature(drain_filter)]
+#![feature(let_else)]
+
 use std::fs::read_to_string;
 use std::path::PathBuf;
 
@@ -6,7 +8,7 @@ use anyhow::{Context, Result};
 use clap::Parser;
 
 use crate::frontend::parse;
-use crate::ir::gen_ssa;
+use crate::ir::gen_ir;
 use crate::optimizations::optimize;
 use crate::semantics::analyze;
 
@@ -29,11 +31,11 @@ fn main() -> Result<()> {
 
     let contents = read_to_string(args.target.unwrap()).context("unable to open source file")?;
     let exprs = parse(&mut contents.chars())?;
-    let mut func = analyze(&exprs)?;
+    let mut program = analyze(&exprs)?;
 
-    let mut ssa = gen_ssa(&mut func)?;
-    optimize(&mut ssa);
+    let mut program = gen_ir(&mut program)?;
+    optimize(&mut program);
 
-    println!("{}", ssa);
+    println!("{}", program);
     Ok(())
 }
