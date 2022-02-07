@@ -1,0 +1,6 @@
+(define a (input))
+(define b (input))
+(set a (~ a))
+(set a (& a b))
+(set a (^ a b))
+(return a)
