@@ -76,6 +76,7 @@ fn evaluate(
         SSAInstructionRHS::LoadIntegerLiteral { value } => *value,
         SSAInstructionRHS::Move { src } => get_reg(src)?,
         SSAInstructionRHS::ReadInput => return None,
+        SSAInstructionRHS::ReadMemory(_) => return None,
     })
 }
 
