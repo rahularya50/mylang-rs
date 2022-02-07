@@ -1,6 +1,27 @@
+use std::collections::HashMap;
+use std::fmt::Display;
+
 use anyhow::{bail, Context, Result};
 
 use crate::frontend::ParseExpr;
+
+pub struct Program<FuncType> {
+    pub funcs: HashMap<String, FuncType>,
+}
+
+impl<FuncType: Display> Display for Program<FuncType> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for func in self.funcs.values() {
+            writeln!(f, "{}", func)?;
+        }
+        Ok(())
+    }
+}
+pub struct FuncDefinition {
+    pub name: String,
+    pub args: Box<[String]>,
+    pub body: Expr,
+}
 
 #[derive(Debug)]
 pub enum Expr {
@@ -128,7 +149,7 @@ fn analyze_assign(operands: &[ParseExpr]) -> Result<Expr> {
 }
 
 fn analyze_loop(operands: &[ParseExpr]) -> Result<Expr> {
-    Ok(Expr::Loop(Box::new(analyze(operands)?)))
+    Ok(Expr::Loop(Box::new(analyze_block(operands)?)))
 }
 
 fn analyze_break(operands: &[ParseExpr]) -> Result<Expr> {
@@ -170,6 +191,12 @@ fn analyze_unary_operator(operator: UnaryOperator, operands: &[ParseExpr]) -> Re
     })
 }
 
+fn analyze_block(exprs: &[ParseExpr]) -> Result<Expr> {
+    Ok(Expr::Block(
+        exprs.iter().map(analyze_expr).collect::<Result<_>>()?,
+    ))
+}
+
 fn analyze_expr(expr: &ParseExpr) -> Result<Expr> {
     Ok(match expr {
         ParseExpr::Integer(val) => Expr::IntegerLiteral(*val),
@@ -189,7 +216,7 @@ fn analyze_expr(expr: &ParseExpr) -> Result<Expr> {
                     "loop" => analyze_loop(operands)?,
                     "break" => analyze_break(operands)?,
                     "continue" => analyze_continue(operands)?,
-                    "begin" => analyze(operands)?,
+                    "begin" => analyze_block(operands)?,
                     "return" => analyze_return(operands)?,
                     "input" => analyze_input(operands)?,
                     _ => bail!("invalid operator in call expression: {}", operator),
@@ -202,8 +229,54 @@ fn analyze_expr(expr: &ParseExpr) -> Result<Expr> {
     })
 }
 
-pub fn analyze(parsed: &[ParseExpr]) -> Result<Expr> {
-    Ok(Expr::Block(
-        parsed.iter().map(analyze_expr).collect::<Result<_>>()?,
-    ))
+fn analyze_function(exprs: &[ParseExpr]) -> Result<FuncDefinition> {
+    let (signature, body) = exprs
+        .split_first()
+        .context("functions must have a signature")?;
+    let ParseExpr::List(signature) = signature else {
+        bail!("function signatures must be lists");
+    };
+    let (name, args) = signature
+        .split_first()
+        .context("function signatures cannot be empty")?;
+    let ParseExpr::Symbol(name) = name else {
+        bail!("function signatures must begin with the name");
+    };
+    let args = args
+        .iter()
+        .map(|arg| match arg {
+            ParseExpr::Symbol(arg) => Some(arg.to_owned()),
+            _ => None,
+        })
+        .collect::<Option<_>>()
+        .context("all args must be symbols")?;
+    Ok(FuncDefinition {
+        name: name.to_owned(),
+        args,
+        body: analyze_block(body)?,
+    })
+}
+
+pub fn analyze(exprs: &[ParseExpr]) -> Result<Program<FuncDefinition>> {
+    let mut funcs = HashMap::new();
+    for expr in exprs {
+        let ParseExpr::List(lst) = expr else {
+            bail!("all top-level expressions must be functions or structs");
+        };
+        let Some((ParseExpr::Symbol(operator), operands)) = lst.split_first() else {
+            bail!("all top-level expressions must be functions or structs");
+        };
+        match operator.as_str() {
+            "func" => {
+                let func = analyze_function(operands)?;
+                if funcs.insert(func.name.clone(), func).is_some() {
+                    bail!("all functions must be uniquely named");
+                };
+            }
+            _ => {
+                bail!("all top-level expressions must be functions or structs");
+            }
+        }
+    }
+    Ok(Program { funcs })
 }

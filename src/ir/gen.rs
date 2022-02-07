@@ -11,7 +11,7 @@ pub struct LoopContext {
 }
 
 pub fn gen_expr(
-    expr: &mut Expr,
+    expr: &Expr,
     func: &mut Function<VirtualVariable, Block>,
     frame: &mut Frame<String, VirtualVariable>,
     loops: &mut Vec<LoopContext>,
@@ -86,7 +86,7 @@ pub fn gen_expr(
         }
         Expr::Block(exprs) => {
             let mut out = None;
-            for expr in exprs.iter_mut() {
+            for expr in exprs.iter() {
                 let out_tmp;
                 (out_tmp, block) = gen_expr(expr, func, frame, loops, block)?;
                 out = Some(out_tmp);
