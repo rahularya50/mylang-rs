@@ -51,6 +51,17 @@ pub fn gen_expr(
             ));
             (None, block)
         }
+        Expr::ReadMemory(arg) => {
+            let (arg, block) = gen_expr(arg, func, frame, loops, block)?;
+            let out = func.new_reg();
+            block.borrow_mut().instructions.push(Instruction::new(
+                out,
+                InstructionRHS::ReadMemory(
+                    arg.context("cannot pass a statement as an argument")?,
+                ),
+            ));
+            (Some(out), block)
+        }
         Expr::UnaryOp {
             operator,
             arg,

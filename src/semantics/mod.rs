@@ -56,6 +56,7 @@ pub enum Expr {
         operator: UnaryOperator, 
         arg: Box<Expr>
     },
+    ReadMemory(Box<Expr>),
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -184,6 +185,13 @@ fn analyze_input(operands: &[ParseExpr]) -> Result<Expr> {
     }
 }
 
+fn analyze_read_memory(operands: &[ParseExpr]) -> Result<Expr> {
+    Ok(match operands {
+        [expr] => Expr::ReadMemory(Box::new(analyze_expr(expr)?)),
+        _ => bail!("memory read instructions have one argument"),
+    })
+}
+
 fn analyze_unary_operator(operator: UnaryOperator, operands: &[ParseExpr]) -> Result<Expr> {
     Ok(match operands {
         [expr] => Expr::UnaryOp {operator, arg: Box::new(analyze_expr(expr)?)},
@@ -210,6 +218,7 @@ fn analyze_expr(expr: &ParseExpr) -> Result<Expr> {
                     "^" => analyze_arithop(BinaryOperator::Xor, operands)?,
                     "&" => analyze_arithop(BinaryOperator::And, operands)?,
                     "~" => analyze_unary_operator(UnaryOperator::Not, operands)?,
+                    "read" => analyze_read_memory(operands)?,
                     "if" => analyze_if(operands)?,
                     "define" => analyze_define(operands)?,
                     "set" => analyze_assign(operands)?,
