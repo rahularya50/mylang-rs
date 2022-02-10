@@ -5,8 +5,10 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
+use itertools::Itertools;
+
 use self::lower::{lowered_insts, LoweredInstruction};
-use crate::ir::{FullBlock, SSAFunction};
+use crate::ir::{FullBlock, JumpInstruction, Phi, SSAFunction, SSAJumpInstruction};
 use crate::utils::rcequality::RcDereferencable;
 
 enum RegisterUse {
@@ -18,25 +20,50 @@ enum RegisterUse {
 pub fn gen_microops(
     mut func: SSAFunction,
 ) -> impl IntoIterator<Item = Rc<RefCell<FullBlock<LoweredInstruction>>>> {
-    func.clear_dead_blocks();
     let mut block_lookup = HashMap::new();
-    for block in func.blocks.iter() {
+    for block in func.blocks() {
         block_lookup.insert(block.as_key(), Rc::new(RefCell::new(FullBlock::default())));
     }
-    for block_ref in func.blocks.clone() {
+    let mut input_cnt = 0;
+    for block_ref in func.blocks().collect_vec() {
         let out_block = block_lookup.remove(&block_ref.as_key()).unwrap();
-        let block = block_ref.upgrade().unwrap().take();
+        let block = block_ref.take();
         let mut instructions = vec![];
         for inst in block.instructions {
-            instructions.extend(lowered_insts(&mut func, inst))
+            instructions.extend(lowered_insts(&mut func, inst, &mut input_cnt))
         }
         out_block.borrow_mut().debug_index = block.debug_index;
         out_block.borrow_mut().preds = block
             .preds
-            .iter()
-            .map(|pred| Rc::downgrade(&block_lookup[&pred.borrow()]).into())
+            .into_iter()
+            .map(|pred| Rc::downgrade(&block_lookup[pred.borrow()]).into())
+            .collect();
+        out_block.borrow_mut().phis = block
+            .phis
+            .into_iter()
+            .map(|phi| Phi {
+                srcs: phi
+                    .srcs
+                    .into_iter()
+                    .map(|(k, v)| (Rc::downgrade(&block_lookup[k.borrow()]).into(), v))
+                    .collect(),
+                dest: phi.dest,
+            })
             .collect();
         out_block.borrow_mut().instructions = instructions;
+        out_block.borrow_mut().exit = match block.exit {
+            SSAJumpInstruction::BranchIfElseZero { pred, conseq, alt } => {
+                JumpInstruction::BranchIfElseZero {
+                    pred,
+                    conseq: block_lookup[&conseq.as_key()].clone(),
+                    alt: block_lookup[&alt.as_key()].clone(),
+                }
+            }
+            SSAJumpInstruction::Ret(val) => JumpInstruction::Ret(val),
+            SSAJumpInstruction::UnconditionalJump { dest } => JumpInstruction::UnconditionalJump {
+                dest: block_lookup[&dest.as_key()].clone(),
+            },
+        };
         block_lookup.insert(block_ref.as_key(), out_block);
     }
     block_lookup.into_values()

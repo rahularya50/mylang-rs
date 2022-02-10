@@ -5,7 +5,8 @@ use self::dominance::{
     sort_blocks_postorder,
 };
 use self::gen::gen_expr;
-use self::instructions::{Instruction, InstructionRHS, JumpInstruction};
+pub use self::instructions::JumpInstruction;
+use self::instructions::{Instruction, InstructionRHS};
 use self::ssa_transform::{
     alloc_ssa_blocks, backfill_ssa_phis, defining_blocks_for_variables, populate_ssa_blocks,
     ssa_phis,

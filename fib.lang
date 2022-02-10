@@ -13,5 +13,10 @@
 )
 
 (func (main rs1 rs2 rd)
-    (return (+ rs1 rs2))
+    (define a rs1)
+    (define b rs2)
+    (loop
+        (if (- a b) (break))
+        (set b (+ a a))
+    )
 )

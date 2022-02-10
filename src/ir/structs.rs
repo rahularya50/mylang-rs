@@ -46,7 +46,9 @@ impl<RegType, BlockType: BlockWithDebugIndex> Function<RegType, BlockType> {
     }
 
     pub fn clear_dead_blocks(&mut self) {
-        self.blocks.drain_filter(|block| block.upgrade().is_none());
+        self.blocks
+            .drain_filter(|block| block.upgrade().is_none())
+            .for_each(|_| {});
     }
 }
 
