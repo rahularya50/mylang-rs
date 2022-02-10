@@ -5,7 +5,7 @@ use crate::ir::{
     Phi, SSAFunction, SSAInstruction, SSAInstructionRHS, SSAJumpInstruction, VirtualRegister,
 };
 use crate::semantics::{BinaryOperator, UnaryOperator};
-use crate::utils::rcequality::RcEqualityKey;
+use crate::utils::rcequality::RcDereferencable;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 enum RegisterValue {

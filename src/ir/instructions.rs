@@ -7,7 +7,7 @@ use std::rc::Rc;
 use super::structs::{BlockWithDebugIndex, RegisterLValue};
 use crate::semantics::{BinaryOperator, UnaryOperator};
 use crate::utils::frame::Frame;
-use crate::utils::rcequality::{RcEquality, RcEqualityKey};
+use crate::utils::rcequality::{RcDereferencable, RcEquality};
 
 #[derive(Debug)]
 pub enum InstructionRHS<RegType> {
@@ -36,13 +36,8 @@ impl<RegType: Eq + Hash + Copy> InstructionRHS<RegType> {
         frame: &Frame<RegType, NewRegType>,
     ) -> Option<InstructionRHS<NewRegType>> {
         Some(match *self {
-            InstructionRHS::ReadMemory(arg) => InstructionRHS::ReadMemory(
-                frame.lookup(&arg)?,
-            ),
-            InstructionRHS::UnaryOperation {
-                operator,
-                arg,
-            } => InstructionRHS::UnaryOperation {
+            InstructionRHS::ReadMemory(arg) => InstructionRHS::ReadMemory(frame.lookup(&arg)?),
+            InstructionRHS::UnaryOperation { operator, arg } => InstructionRHS::UnaryOperation {
                 operator,
                 arg: frame.lookup(&arg)?,
             },
@@ -68,10 +63,7 @@ impl<RegType: Eq + Hash + Copy> InstructionRHS<RegType> {
     pub fn regs(&self) -> impl Iterator<Item = &RegType> {
         (match self {
             InstructionRHS::ReadMemory(arg) => vec![arg],
-            InstructionRHS::UnaryOperation {
-                operator: _,
-                arg,
-            } => vec![arg],
+            InstructionRHS::UnaryOperation { operator: _, arg } => vec![arg],
             InstructionRHS::BinaryOperation {
                 operator: _,
                 arg1,
@@ -87,10 +79,7 @@ impl<RegType: Eq + Hash + Copy> InstructionRHS<RegType> {
     pub fn regs_mut(&mut self) -> impl Iterator<Item = &mut RegType> {
         (match self {
             InstructionRHS::ReadMemory(arg) => vec![arg],
-            InstructionRHS::UnaryOperation {
-                operator: _,
-                arg,
-            } => vec![arg],
+            InstructionRHS::UnaryOperation { operator: _, arg } => vec![arg],
             InstructionRHS::BinaryOperation {
                 operator: _,
                 arg1,
@@ -123,13 +112,10 @@ where
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{} = ", self.lhs)?;
         match &self.rhs {
-            InstructionRHS::ReadMemory(arg)  => {
+            InstructionRHS::ReadMemory(arg) => {
                 write!(f, "read {arg}")
             }
-            InstructionRHS::UnaryOperation {
-                operator,
-                arg,
-            } => {
+            InstructionRHS::UnaryOperation { operator, arg } => {
                 write!(f, "{operator:?} {arg}")
             }
             InstructionRHS::BinaryOperation {

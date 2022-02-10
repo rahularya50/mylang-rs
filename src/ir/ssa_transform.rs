@@ -7,11 +7,12 @@ use itertools::Itertools;
 use super::dominance::BlockDataLookup;
 use super::instructions::Instruction;
 use super::structs::{
-    BlockRef, Function, Phi, SSABlock, VirtualRegister, VirtualRegisterLValue, VirtualVariable,
+    BlockRef, Function, Phi, VirtualRegister, VirtualRegisterLValue, VirtualVariable,
 };
+use super::SSABlock;
 use crate::utils::frame::Frame;
 use crate::utils::graph::explore;
-use crate::utils::rcequality::{RcEquality, RcEqualityKey};
+use crate::utils::rcequality::{RcDereferencable, RcEquality};
 
 pub fn defining_blocks_for_variables(
     blocks: &[BlockRef],

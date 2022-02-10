@@ -4,14 +4,16 @@
 use std::fs::read_to_string;
 use std::path::PathBuf;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use clap::Parser;
 
+use crate::backend::microcode::gen_microops;
 use crate::frontend::parse;
 use crate::ir::gen_ir;
 use crate::optimizations::optimize;
 use crate::semantics::analyze;
 
+mod backend;
 mod frontend;
 mod ir;
 mod optimizations;
@@ -23,18 +25,28 @@ mod utils;
 struct Args {
     /// The file to compile
     #[clap(short, long, required = true)]
-    target: Option<PathBuf>,
+    target: PathBuf,
+    #[clap(short, long)]
+    fold_constants: bool,
 }
 
 fn main() -> Result<()> {
     let args = Args::parse();
 
-    let contents = read_to_string(args.target.unwrap()).context("unable to open source file")?;
+    let contents = read_to_string(args.target).expect("unable to open source file");
     let exprs = parse(&mut contents.chars())?;
     let program = analyze(&exprs)?;
 
     let mut program = gen_ir(&program)?;
-    optimize(&mut program);
+    // don't do constant folding for microcode output, since constants are expensive
+    optimize(&mut program, args.fold_constants);
+
+    gen_microops(
+        program
+            .funcs
+            .remove("main")
+            .expect("main() function must be defined"),
+    );
 
     println!("{}", program);
     Ok(())

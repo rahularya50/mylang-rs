@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::hash::Hash;
 use std::rc::Rc;
 
-use super::rcequality::RcEqualityKey;
+use super::rcequality::RcDereferencable;
 
 pub struct UnionFind<T> {
     lookup: HashMap<T, Rc<RefCell<UnionFindNode<T>>>>,

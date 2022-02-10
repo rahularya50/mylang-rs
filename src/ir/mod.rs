@@ -10,8 +10,8 @@ use self::ssa_transform::{
     alloc_ssa_blocks, backfill_ssa_phis, defining_blocks_for_variables, populate_ssa_blocks,
     ssa_phis,
 };
-use self::structs::{Function, VirtualVariable, Block};
-pub use self::structs::{Phi, SSABlock, VirtualRegister, VirtualRegisterLValue};
+use self::structs::{Block, Function, VirtualVariable};
+pub use self::structs::{FullBlock, Phi, VirtualRegister, VirtualRegisterLValue};
 use crate::semantics::{FuncDefinition, Program};
 use crate::utils::frame::Frame;
 
@@ -21,6 +21,8 @@ mod instructions;
 mod ssa_transform;
 mod structs;
 
+pub type SSABlock = FullBlock<SSAInstruction>;
+pub type SSAPhi = Phi<SSAInstruction>;
 pub type SSAFunction = Function<VirtualRegisterLValue, SSABlock>;
 pub type SSAInstruction = Instruction<VirtualRegisterLValue>;
 pub type SSAInstructionRHS = InstructionRHS<VirtualRegister>;

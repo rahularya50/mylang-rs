@@ -6,19 +6,19 @@ use std::rc::{Rc, Weak};
 
 pub trait RcDereferencable {
     type Contained;
-    fn as_ptr(&self) -> *const Self::Contained;
+    fn as_key(&self) -> *const Self::Contained;
 }
 
 impl<T> RcDereferencable for Rc<T> {
     type Contained = T;
-    fn as_ptr(&self) -> *const T {
+    fn as_key(&self) -> *const T {
         Self::as_ptr(self)
     }
 }
 
 impl<T> RcDereferencable for Weak<T> {
     type Contained = T;
-    fn as_ptr(&self) -> *const T {
+    fn as_key(&self) -> *const T {
         Self::as_ptr(self)
     }
 }
@@ -58,17 +58,7 @@ impl<T: RcDereferencable> Borrow<*const T::Contained> for RcEquality<T> {
 
 impl<T: RcDereferencable> From<T> for RcEquality<T> {
     fn from(x: T) -> Self {
-        let ptr = x.as_ptr();
+        let ptr = x.as_key();
         Self(x, ptr)
-    }
-}
-
-pub trait RcEqualityKey<T: RcDereferencable> {
-    fn as_key(&self) -> *const T::Contained;
-}
-
-impl<T: RcDereferencable> RcEqualityKey<T> for T {
-    fn as_key(&self) -> *const T::Contained {
-        self.as_ptr()
     }
 }

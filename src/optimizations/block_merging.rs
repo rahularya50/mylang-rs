@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use std::rc::Rc;
 
 use crate::ir::{SSABlock, SSAFunction, SSAJumpInstruction};
-use crate::utils::rcequality::{RcEquality, RcEqualityKey};
+use crate::utils::rcequality::{RcDereferencable, RcEquality};
 
 pub fn remove_empty_blocks(func: &mut SSAFunction) {
     let mut visited = HashSet::<RcEquality<Rc<RefCell<SSABlock>>>>::new();

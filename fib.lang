@@ -11,3 +11,7 @@
     )
     (return p1)
 )
+
+(func (main rs1 rs2 rd)
+    (return (+ rs1 rs2))
+)

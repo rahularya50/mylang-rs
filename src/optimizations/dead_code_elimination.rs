@@ -2,19 +2,19 @@ use std::collections::{HashMap, HashSet};
 
 use itertools::Itertools;
 
-use crate::ir::{Phi, SSAFunction, SSAInstruction, SSAJumpInstruction};
+use crate::ir::{SSAFunction, SSAInstruction, SSAJumpInstruction, SSAPhi};
 
 #[derive(Debug)]
 enum RegisterUsage<'a> {
     Assignment(&'a SSAInstruction),
     Jump(&'a SSAJumpInstruction),
-    Phi(&'a Phi),
+    Phi(&'a SSAPhi),
 }
 
 #[derive(Debug)]
 enum RegisterDefinition<'a> {
     Assignment(&'a SSAInstruction),
-    Phi(&'a Phi),
+    Phi(&'a SSAPhi),
 }
 
 pub fn remove_dead_statements(func: &mut SSAFunction) {

@@ -5,7 +5,7 @@ use itertools::Itertools;
 
 use super::structs::BlockRef;
 use crate::utils::graph::explore;
-use crate::utils::rcequality::{RcEquality, RcEqualityKey};
+use crate::utils::rcequality::{RcDereferencable, RcEquality};
 
 pub type BlockDataLookup<T> = HashMap<RcEquality<BlockRef>, T>;
 

@@ -118,15 +118,15 @@ impl Display for Block {
 }
 
 #[derive(Debug)]
-pub struct SSABlock {
+pub struct FullBlock<IType> {
     pub debug_index: u16,
-    pub preds: HashSet<RcEquality<Weak<RefCell<SSABlock>>>>,
-    pub phis: Vec<Phi>,
-    pub instructions: Vec<Instruction<VirtualRegisterLValue>>,
-    pub exit: JumpInstruction<VirtualRegister, SSABlock>,
+    pub preds: HashSet<RcEquality<Weak<RefCell<Self>>>>,
+    pub phis: Vec<Phi<IType>>,
+    pub instructions: Vec<IType>,
+    pub exit: JumpInstruction<VirtualRegister, Self>,
 }
 
-impl SSABlock {
+impl<IType> FullBlock<IType> {
     pub fn preds(&self) -> impl Iterator<Item = Rc<RefCell<Self>>> + '_ {
         self.preds
             .iter()
@@ -134,7 +134,7 @@ impl SSABlock {
     }
 }
 
-impl BlockWithDebugIndex for SSABlock {
+impl<IType> BlockWithDebugIndex for FullBlock<IType> {
     fn new_with_index(debug_index: u16) -> Self {
         Self {
             debug_index,
@@ -150,7 +150,19 @@ impl BlockWithDebugIndex for SSABlock {
     }
 }
 
-impl Display for SSABlock {
+impl<IType> Default for FullBlock<IType> {
+    fn default() -> Self {
+        Self {
+            debug_index: 0,
+            preds: HashSet::new(),
+            phis: vec![],
+            instructions: vec![],
+            exit: JumpInstruction::Ret(None),
+        }
+    }
+}
+
+impl<IType: Display> Display for FullBlock<IType> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         writeln!(
             f,
@@ -219,12 +231,12 @@ impl Display for VirtualRegisterLValue {
 }
 
 #[derive(Debug)]
-pub struct Phi {
-    pub srcs: HashMap<RcEquality<Weak<RefCell<SSABlock>>>, VirtualRegister>,
+pub struct Phi<IType> {
+    pub srcs: HashMap<RcEquality<Weak<RefCell<FullBlock<IType>>>>, VirtualRegister>,
     pub dest: VirtualRegisterLValue,
 }
 
-impl Display for Phi {
+impl<IType> Display for Phi<IType> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(
             f,

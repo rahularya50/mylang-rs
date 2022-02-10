@@ -1,5 +1,5 @@
 use crate::ir::{SSAFunction, SSAJumpInstruction};
-use crate::utils::rcequality::RcEqualityKey;
+use crate::utils::rcequality::RcDereferencable;
 
 pub fn simplify_jumps(func: &mut SSAFunction) {
     for block in func.blocks() {
