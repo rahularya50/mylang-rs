@@ -6,7 +6,7 @@ use std::rc::{Rc, Weak};
 
 use itertools::Itertools;
 
-use super::instructions::{Instruction, JumpInstruction};
+use super::instructions::{Instruction, InstructionRHS, JumpInstruction};
 use crate::utils::rcequality::RcEquality;
 
 #[derive(Debug)]
@@ -85,10 +85,15 @@ pub trait RegisterLValue {
     fn new(index: u16) -> Self;
 }
 
+pub trait WithRegisters<RType> {
+    fn regs(&self) -> <Vec<&RType> as IntoIterator>::IntoIter;
+    fn regs_mut(&mut self) -> <Vec<&mut RType> as IntoIterator>::IntoIter;
+}
+
 #[derive(Debug)]
 pub struct Block {
     pub(super) debug_index: u16,
-    pub instructions: Vec<Instruction<VirtualVariable>>,
+    pub instructions: Vec<Instruction<VirtualVariable, InstructionRHS<VirtualVariable>>>,
     pub exit: JumpInstruction<VirtualVariable, Block>,
 }
 
@@ -204,7 +209,7 @@ impl Display for VirtualVariable {
     }
 }
 
-#[derive(Debug, Eq, PartialEq, Hash, Copy, Clone)]
+#[derive(Debug, Eq, PartialEq, Hash, Copy, Clone, Ord, PartialOrd)]
 pub struct VirtualRegister {
     index: u16,
 }

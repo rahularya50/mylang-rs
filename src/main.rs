@@ -5,10 +5,9 @@ use std::fs::read_to_string;
 use std::path::PathBuf;
 
 use anyhow::Result;
+use backend::microcode::lower_to_microcode;
 use clap::Parser;
-use itertools::Itertools;
 
-use crate::backend::microcode::gen_microops;
 use crate::frontend::parse;
 use crate::ir::gen_ir;
 use crate::optimizations::optimize;
@@ -42,17 +41,12 @@ fn main() -> Result<()> {
     // don't do constant folding for microcode output, since constants are expensive
     optimize(&mut program, args.fold_constants);
 
-    let microops = gen_microops(
+    lower_to_microcode(
         program
             .funcs
             .remove("main")
             .expect("main() function must be defined"),
-    )
-    .into_iter()
-    .collect_vec();
+    );
 
-    for block in microops {
-        println!("{}", block.borrow());
-    }
     Ok(())
 }

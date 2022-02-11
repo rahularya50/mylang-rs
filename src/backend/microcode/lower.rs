@@ -1,172 +1,69 @@
-use std::fmt::{self, Display, Formatter};
+use std::borrow::Borrow;
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::rc::Rc;
 
-use crate::ir::{
-    SSABlock, SSAFunction, SSAInstruction, SSAInstructionRHS, VirtualRegister,
-    VirtualRegisterLValue,
-};
-use crate::semantics::{BinaryOperator, UnaryOperator};
+use itertools::Itertools;
 
-pub struct LoweredInstruction {
-    pub lhs: VirtualRegisterLValue,
-    pub rhs: LoweredInstructionRHS,
+use super::instructions::LoweredInstruction;
+use crate::backend::microcode::instructions::lowered_insts;
+use crate::ir::{FullBlock, JumpInstruction, Phi, SSAFunction, SSAJumpInstruction};
+use crate::utils::rcequality::RcDereferencable;
+
+enum RegisterUse {
+    Memory,
+    Writeback,
+    Mixed,
 }
 
-#[derive(Copy, Clone, Debug)]
-pub enum UnaryALUOperator {
-    Copy,
-    Inc1,
-    Inc4,
-    Dec1,
-    Dec4,
-}
-
-#[derive(Copy, Clone, Debug)]
-pub enum BinaryALUOperator {
-    Add,
-    Sub,
-    Slt,
-    Sltu,
-    And,
-    Or,
-    Xor,
-}
-
-pub enum LoweredInstructionRHS {
-    UnaryALU {
-        operator: UnaryALUOperator,
-        arg: VirtualRegister,
-    },
-    BinaryALU {
-        operator: BinaryALUOperator,
-        arg1: VirtualRegister,
-        arg2: VirtualRegister,
-    },
-    LoadOneImmediate,
-    LoadMemory(VirtualRegister),
-    StoreMemory {
-        addr: VirtualRegister,
-        data: VirtualRegister,
-    },
-    LoadRegister(u8),
-    StoreRegister {
-        index: u8,
-        value: VirtualRegister,
-    },
-}
-
-impl Display for LoweredInstruction {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{} = ", self.lhs)?;
-        match &self.rhs {
-            LoweredInstructionRHS::LoadMemory(arg) => {
-                write!(f, "read {arg}")
-            }
-            LoweredInstructionRHS::UnaryALU { operator, arg } => write!(f, "{operator:?} {arg}"),
-            LoweredInstructionRHS::BinaryALU {
-                operator,
-                arg1,
-                arg2,
-            } => write!(f, "{arg1} {operator:?} {arg2}"),
-            LoweredInstructionRHS::LoadOneImmediate => write!(f, "imm"),
-            LoweredInstructionRHS::StoreMemory { addr, data } => write!(f, "mem[{addr}] = {data}"),
-            LoweredInstructionRHS::LoadRegister(index) => write!(f, "R[{index}]"),
-            LoweredInstructionRHS::StoreRegister { index, value } => {
-                write!(f, "R[{index}] = {value}")
-            }
-        }
+pub fn gen_lowered_blocks(
+    mut func: SSAFunction,
+) -> impl IntoIterator<Item = Rc<RefCell<FullBlock<LoweredInstruction>>>> {
+    let mut block_lookup = HashMap::new();
+    for block in func.blocks() {
+        block_lookup.insert(block.as_key(), Rc::new(RefCell::new(FullBlock::default())));
     }
-}
-
-pub fn lowered_insts(
-    func: &mut SSAFunction,
-    inst: SSAInstruction,
-    input_cnt: &mut u8,
-) -> impl IntoIterator<Item = LoweredInstruction> {
-    match inst.rhs {
-        SSAInstructionRHS::BinaryOperation {
-            operator,
-            arg1,
-            arg2,
-        } => {
-            vec![LoweredInstruction {
-                lhs: inst.lhs,
-                rhs: LoweredInstructionRHS::BinaryALU {
-                    operator: match operator {
-                        BinaryOperator::Add => BinaryALUOperator::Add,
-                        BinaryOperator::Mul => todo!("implement multiplication"),
-                        BinaryOperator::Sub => BinaryALUOperator::Sub,
-                        BinaryOperator::Div => todo!("implement division"),
-                        BinaryOperator::Xor => BinaryALUOperator::Xor,
-                        BinaryOperator::And => BinaryALUOperator::And,
-                    },
-                    arg1,
-                    arg2,
-                },
-            }]
+    let mut input_cnt = 0;
+    for block_ref in func.blocks().collect_vec() {
+        let out_block = block_lookup.remove(&block_ref.as_key()).unwrap();
+        let block = block_ref.take();
+        let mut instructions = vec![];
+        for inst in block.instructions {
+            instructions.extend(lowered_insts(&mut func, inst, &mut input_cnt))
         }
-        SSAInstructionRHS::UnaryOperation {
-            operator: UnaryOperator::Not,
-            arg,
-        } => {
-            let temp @ VirtualRegisterLValue(temp_ref) = func.new_reg();
-            let temp2 @ VirtualRegisterLValue(temp2_ref) = func.new_reg();
-            let temp3 @ VirtualRegisterLValue(temp3_ref) = func.new_reg();
-            vec![
-                LoweredInstruction {
-                    lhs: temp,
-                    rhs: LoweredInstructionRHS::LoadOneImmediate,
-                },
-                LoweredInstruction {
-                    lhs: temp2,
-                    rhs: LoweredInstructionRHS::UnaryALU {
-                        operator: UnaryALUOperator::Dec1,
-                        arg: temp_ref,
-                    },
-                },
-                LoweredInstruction {
-                    lhs: temp3,
-                    rhs: LoweredInstructionRHS::UnaryALU {
-                        operator: UnaryALUOperator::Dec1,
-                        arg: temp2_ref,
-                    },
-                },
-                LoweredInstruction {
-                    lhs: inst.lhs,
-                    rhs: LoweredInstructionRHS::BinaryALU {
-                        operator: BinaryALUOperator::Xor,
-                        arg1: arg,
-                        arg2: temp3_ref,
-                    },
-                },
-            ]
-        }
-        SSAInstructionRHS::LoadIntegerLiteral { value: _ } => {
-            todo!("implement integer generation")
-        }
-        SSAInstructionRHS::Move { src } => {
-            println!("unexpected reg move in lowered IR");
-            vec![LoweredInstruction {
-                lhs: inst.lhs,
-                rhs: LoweredInstructionRHS::UnaryALU {
-                    operator: UnaryALUOperator::Copy,
-                    arg: src,
-                },
-            }]
-        }
-        SSAInstructionRHS::ReadInput {} => {
-            *input_cnt += 1;
-            vec![LoweredInstruction {
-                lhs: inst.lhs,
-                rhs: LoweredInstructionRHS::LoadRegister(*input_cnt - 1),
-            }]
-        }
-        SSAInstructionRHS::ReadMemory(src) => {
-            vec![LoweredInstruction {
-                lhs: inst.lhs,
-                rhs: LoweredInstructionRHS::LoadMemory(src),
-            }]
-        }
+        out_block.borrow_mut().debug_index = block.debug_index;
+        out_block.borrow_mut().preds = block
+            .preds
+            .into_iter()
+            .map(|pred| Rc::downgrade(&block_lookup[pred.borrow()]).into())
+            .collect();
+        out_block.borrow_mut().phis = block
+            .phis
+            .into_iter()
+            .map(|phi| Phi {
+                srcs: phi
+                    .srcs
+                    .into_iter()
+                    .map(|(k, v)| (Rc::downgrade(&block_lookup[k.borrow()]).into(), v))
+                    .collect(),
+                dest: phi.dest,
+            })
+            .collect();
+        out_block.borrow_mut().instructions = instructions;
+        out_block.borrow_mut().exit = match block.exit {
+            SSAJumpInstruction::BranchIfElseZero { pred, conseq, alt } => {
+                JumpInstruction::BranchIfElseZero {
+                    pred,
+                    conseq: block_lookup[&conseq.as_key()].clone(),
+                    alt: block_lookup[&alt.as_key()].clone(),
+                }
+            }
+            SSAJumpInstruction::Ret(val) => JumpInstruction::Ret(val),
+            SSAJumpInstruction::UnconditionalJump { dest } => JumpInstruction::UnconditionalJump {
+                dest: block_lookup[&dest.as_key()].clone(),
+            },
+        };
+        block_lookup.insert(block_ref.as_key(), out_block);
     }
+    block_lookup.into_values()
 }
-
-fn lower_to_microcode(_func: &SSABlock) {}

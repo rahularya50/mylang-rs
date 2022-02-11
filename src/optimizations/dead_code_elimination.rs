@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use itertools::Itertools;
 
-use crate::ir::{SSAFunction, SSAInstruction, SSAJumpInstruction, SSAPhi};
+use crate::ir::{SSAFunction, SSAInstruction, SSAJumpInstruction, SSAPhi, WithRegisters};
 
 #[derive(Debug)]
 enum RegisterUsage<'a> {
@@ -43,13 +43,13 @@ pub fn remove_dead_statements(func: &mut SSAFunction) {
                     .push(RegisterUsage::Assignment(inst));
             }
         }
-        for reg in block.exit.srcs() {
+        for reg in block.exit.regs() {
             register_users
                 .entry(*reg)
                 .or_default()
                 .push(RegisterUsage::Jump(&block.exit));
         }
-        for reg in block.exit.srcs() {
+        for reg in block.exit.regs() {
             initially_live_registers.insert(reg);
         }
     }

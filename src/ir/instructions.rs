@@ -4,7 +4,7 @@ use std::fmt::{self, Debug, Display, Formatter};
 use std::hash::Hash;
 use std::rc::Rc;
 
-use super::structs::{BlockWithDebugIndex, RegisterLValue};
+use super::structs::{BlockWithDebugIndex, RegisterLValue, WithRegisters};
 use crate::semantics::{BinaryOperator, UnaryOperator};
 use crate::utils::frame::Frame;
 use crate::utils::rcequality::{RcDereferencable, RcEquality};
@@ -59,8 +59,10 @@ impl<RegType: Eq + Hash + Copy> InstructionRHS<RegType> {
             InstructionRHS::ReadInput => InstructionRHS::ReadInput,
         })
     }
+}
 
-    pub fn regs(&self) -> impl Iterator<Item = &RegType> {
+impl<RegType> WithRegisters<RegType> for InstructionRHS<RegType> {
+    fn regs(&self) -> <Vec<&RegType> as IntoIterator>::IntoIter {
         (match self {
             InstructionRHS::ReadMemory(arg) => vec![arg],
             InstructionRHS::UnaryOperation { operator: _, arg } => vec![arg],
@@ -76,7 +78,7 @@ impl<RegType: Eq + Hash + Copy> InstructionRHS<RegType> {
         .into_iter()
     }
 
-    pub fn regs_mut(&mut self) -> impl Iterator<Item = &mut RegType> {
+    fn regs_mut(&mut self) -> <Vec<&mut RegType> as IntoIterator>::IntoIter {
         (match self {
             InstructionRHS::ReadMemory(arg) => vec![arg],
             InstructionRHS::UnaryOperation { operator: _, arg } => vec![arg],
@@ -94,18 +96,19 @@ impl<RegType: Eq + Hash + Copy> InstructionRHS<RegType> {
 }
 
 #[derive(Debug)]
-pub struct Instruction<LValue: RegisterLValue> {
+pub struct Instruction<LValue, RValue> {
     pub lhs: LValue,
-    pub rhs: InstructionRHS<LValue::RValue>,
+    pub rhs: RValue,
 }
 
-impl<LValue: RegisterLValue> Instruction<LValue> {
-    pub fn new(lhs: LValue, rhs: InstructionRHS<LValue::RValue>) -> Self {
+impl<LValue, RValue> Instruction<LValue, RValue> {
+    pub fn new(lhs: LValue, rhs: RValue) -> Self {
         Self { lhs, rhs }
     }
 }
 
-impl<LValue: RegisterLValue + Display> Display for Instruction<LValue>
+impl<LValue: RegisterLValue + Display> Display
+    for Instruction<LValue, InstructionRHS<LValue::RValue>>
 where
     LValue::RValue: Display,
 {
@@ -152,28 +155,6 @@ pub enum JumpInstruction<RegType, BlockType> {
 }
 
 impl<RegType, BlockType> JumpInstruction<RegType, BlockType> {
-    pub fn srcs(&self) -> impl Iterator<Item = &RegType> {
-        (match self {
-            JumpInstruction::BranchIfElseZero { pred, .. } => {
-                vec![pred]
-            }
-            JumpInstruction::UnconditionalJump { dest: _ } | JumpInstruction::Ret(None) => vec![],
-            JumpInstruction::Ret(Some(out)) => vec![out],
-        })
-        .into_iter()
-    }
-
-    pub fn srcs_mut(&mut self) -> impl Iterator<Item = &mut RegType> {
-        (match self {
-            JumpInstruction::BranchIfElseZero { pred, .. } => {
-                vec![pred]
-            }
-            JumpInstruction::UnconditionalJump { dest: _ } | JumpInstruction::Ret(None) => vec![],
-            JumpInstruction::Ret(Some(out)) => vec![out],
-        })
-        .into_iter()
-    }
-
     pub fn dests(&self) -> impl Iterator<Item = &Rc<RefCell<BlockType>>> {
         (match self {
             JumpInstruction::BranchIfElseZero { conseq, alt, .. } => {
@@ -220,6 +201,30 @@ impl<RegType, BlockType> JumpInstruction<RegType, BlockType> {
                 None => None,
             }),
         })
+    }
+}
+
+impl<RegType, BlockType> WithRegisters<RegType> for JumpInstruction<RegType, BlockType> {
+    fn regs(&self) -> <Vec<&RegType> as IntoIterator>::IntoIter {
+        (match self {
+            JumpInstruction::BranchIfElseZero { pred, .. } => {
+                vec![pred]
+            }
+            JumpInstruction::UnconditionalJump { dest: _ } | JumpInstruction::Ret(None) => vec![],
+            JumpInstruction::Ret(Some(out)) => vec![out],
+        })
+        .into_iter()
+    }
+
+    fn regs_mut(&mut self) -> <Vec<&mut RegType> as IntoIterator>::IntoIter {
+        (match self {
+            JumpInstruction::BranchIfElseZero { pred, .. } => {
+                vec![pred]
+            }
+            JumpInstruction::UnconditionalJump { dest: _ } | JumpInstruction::Ret(None) => vec![],
+            JumpInstruction::Ret(Some(out)) => vec![out],
+        })
+        .into_iter()
     }
 }
 

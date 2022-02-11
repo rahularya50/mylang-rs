@@ -5,14 +5,14 @@ use self::dominance::{
     sort_blocks_postorder,
 };
 use self::gen::gen_expr;
-pub use self::instructions::JumpInstruction;
-use self::instructions::{Instruction, InstructionRHS};
+use self::instructions::InstructionRHS;
+pub use self::instructions::{Instruction, JumpInstruction};
 use self::ssa_transform::{
     alloc_ssa_blocks, backfill_ssa_phis, defining_blocks_for_variables, populate_ssa_blocks,
     ssa_phis,
 };
 use self::structs::{Block, Function, VirtualVariable};
-pub use self::structs::{FullBlock, Phi, VirtualRegister, VirtualRegisterLValue};
+pub use self::structs::{FullBlock, Phi, VirtualRegister, VirtualRegisterLValue, WithRegisters};
 use crate::semantics::{FuncDefinition, Program};
 use crate::utils::frame::Frame;
 
@@ -25,7 +25,7 @@ mod structs;
 pub type SSABlock = FullBlock<SSAInstruction>;
 pub type SSAPhi = Phi<SSAInstruction>;
 pub type SSAFunction = Function<VirtualRegisterLValue, SSABlock>;
-pub type SSAInstruction = Instruction<VirtualRegisterLValue>;
+pub type SSAInstruction = Instruction<VirtualRegisterLValue, SSAInstructionRHS>;
 pub type SSAInstructionRHS = InstructionRHS<VirtualRegister>;
 pub type SSAJumpInstruction = JumpInstruction<VirtualRegister, SSABlock>;
 

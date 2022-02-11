@@ -2,7 +2,7 @@ use std::mem::take;
 
 use itertools::Itertools;
 
-use crate::ir::{SSAFunction, SSAInstruction, SSAInstructionRHS, VirtualRegister};
+use crate::ir::{SSAFunction, SSAInstruction, SSAInstructionRHS, VirtualRegister, WithRegisters};
 use crate::utils::union_find::UnionFind;
 
 fn make_reg_replacer(regs: &UnionFind<VirtualRegister>) -> impl Fn(&mut VirtualRegister) + '_ {
@@ -47,7 +47,7 @@ pub fn copy_propagation(func: &mut SSAFunction) {
             inst.rhs.regs_mut().for_each(&mapper);
         }
 
-        block.exit.srcs_mut().for_each(&mapper);
+        block.exit.regs_mut().for_each(&mapper);
 
         phi_moves.extend(take(&mut block.instructions));
         block.instructions = phi_moves;
