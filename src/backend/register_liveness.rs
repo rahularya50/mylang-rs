@@ -48,12 +48,27 @@ where
             }
         }
 
-        // todo: handle whe a reg is used in a phi block, it should not follow *all* pred edges
         if latest_use.is_none() {
             for (index, phi) in block.borrow().phis.iter().enumerate().rev() {
-                if phi.srcs.values().contains(&reg) {
-                    latest_use = Some(BlockPosition::Phi(index));
-                    todo.push((block.clone(), latest_use));
+                if let Some((pred_block, _)) = phi.srcs.iter().find(|(block, src)| **src == reg) {
+                    if latest_use.is_none() {
+                        latest_use = Some(BlockPosition::Phi(index));
+                        out.insert(
+                            block.clone().into(),
+                            RegisterLiveness {
+                                since_index: None,
+                                until_index: latest_use,
+                            },
+                        );
+                    }
+                    todo.push((
+                        pred_block
+                            .get_ref()
+                            .upgrade()
+                            .expect("phis should not point to dropped blocks")
+                            .clone(),
+                        None,
+                    ));
                     break;
                 }
             }
@@ -66,11 +81,6 @@ where
                     since_index: None,
                     until_index: latest_use,
                 },
-            );
-            println!(
-                "Reg {} directly consumed by block {}",
-                reg,
-                block.borrow().debug_index
             );
         }
     }
