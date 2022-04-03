@@ -28,6 +28,7 @@ pub enum BinaryALUOperator {
     Xor,
 }
 
+#[derive(Debug)]
 pub enum LoweredInstructionRHS {
     UnaryALU {
         operator: UnaryALUOperator,
