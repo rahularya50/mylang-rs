@@ -1,0 +1,6 @@
+(func (main)
+    (define x (input))
+    (define y x)
+    (if (input) (set y (input)))
+    (return (+ x y))
+)

@@ -20,13 +20,12 @@ pub struct RegisterLiveness {
     pub until_index: Option<BlockPosition>,
 }
 
+type Block<RValue> = FullBlock<Instruction<VirtualRegisterLValue, RValue>>;
+
 pub fn find_liveness<RValue>(
-    blocks: &Vec<Rc<RefCell<FullBlock<Instruction<VirtualRegisterLValue, RValue>>>>>,
+    blocks: &Vec<Rc<RefCell<Block<RValue>>>>,
     reg: VirtualRegister,
-) -> HashMap<
-    RcEquality<Rc<RefCell<FullBlock<Instruction<VirtualRegisterLValue, RValue>>>>>,
-    RegisterLiveness,
->
+) -> HashMap<RcEquality<Rc<RefCell<Block<RValue>>>>, RegisterLiveness>
 where
     Instruction<VirtualRegisterLValue, RValue>: WithRegisters<VirtualRegister>,
 {
@@ -81,7 +80,7 @@ where
         if let Some(liveness) = liveness {
             if liveness.until_index.is_none() {
                 // entire block is already traversed
-                break;
+                continue;
             }
         }
         let entry = out.entry(block.clone().into()).or_default();
