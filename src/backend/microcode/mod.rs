@@ -43,19 +43,16 @@ pub fn lower_to_microcode(func: SSAFunction) {
 
     for (reg, lifetimes) in registers.iter().sorted_by_key(|(reg, _)| reg.to_owned()) {
         println!(
-            "{}",
-            format!(
-                "{reg}:\n{}",
-                lifetimes
-                    .iter()
-                    .sorted_by_key(|(block, _)| block.get_ref().borrow().debug_index)
-                    .map(|(block, lifetime)| format!(
-                        "\t{}: {:?}",
-                        block.get_ref().borrow().debug_index,
-                        lifetime
-                    ))
-                    .join("\n")
-            )
+            "{reg}:\n{}",
+            lifetimes
+                .iter()
+                .sorted_by_key(|(block, _)| block.get_ref().borrow().debug_index)
+                .map(|(block, lifetime)| format!(
+                    "\t{}: {:?}",
+                    block.get_ref().borrow().debug_index,
+                    lifetime
+                ))
+                .join("\n")
         );
     }
 }

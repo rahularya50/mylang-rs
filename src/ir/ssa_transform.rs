@@ -14,6 +14,21 @@ use crate::utils::frame::Frame;
 use crate::utils::graph::explore;
 use crate::utils::rcequality::{RcDereferencable, RcEquality};
 
+/*
+see https://groups.seas.harvard.edu/courses/cs252/2011sp/slides/Lec04-SSA.pdf
+also see: http://www.cs.cmu.edu/afs/cs/academic/class/15745-s12/public/lectures/L13-SSA-Concepts-1up.pdf
+and http://misailo.web.engr.illinois.edu/courses/526-sp20/lec3.pdf
+basic idea:
+    1. compute "iterated dominance frontier" (slide 15 of harvard) for each variable,
+    starting at all defining blocks, to figure out where its phi nodes should belong
+    (i.e. the blocks where conflicting definitions
+    need to be merged)
+    2. traverse "dominator tree" (parent -> child iff parent is "lowest" dominator of child, slide 26 of CMU)
+    in pre-order, and generate a new register for each variable re-definition, using a parallel frame tree
+    to map variables to their latest register
+    3. "backfill" the phi block sources using the frame tree
+*/
+
 pub fn defining_blocks_for_variables(
     blocks: &[BlockRef],
 ) -> HashMap<VirtualVariable, HashSet<RcEquality<BlockRef>>> {
