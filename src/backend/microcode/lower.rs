@@ -25,7 +25,7 @@ pub fn gen_lowered_blocks(
     }
     let mut input_cnt = 0;
     for block_ref in func.blocks().collect_vec() {
-        let out_block = block_lookup.remove(&block_ref.as_key()).unwrap();
+        let out_block = block_lookup.get(&block_ref.as_key()).unwrap();
         let block = block_ref.take();
         let mut instructions = vec![];
         for inst in block.instructions {
@@ -35,7 +35,8 @@ pub fn gen_lowered_blocks(
         out_block.borrow_mut().preds = block
             .preds
             .into_iter()
-            .map(|pred| Rc::downgrade(&block_lookup[pred.borrow()]).into())
+            .filter_map(|pred| pred.get_ref().upgrade())
+            .map(|pred| Rc::downgrade(&block_lookup[&pred.as_key()]).into())
             .collect();
         out_block.borrow_mut().phis = block
             .phis
@@ -63,7 +64,6 @@ pub fn gen_lowered_blocks(
                 dest: block_lookup[&dest.as_key()].clone(),
             },
         };
-        block_lookup.insert(block_ref.as_key(), out_block);
     }
     block_lookup.into_values()
 }

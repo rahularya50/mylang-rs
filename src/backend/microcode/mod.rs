@@ -19,22 +19,8 @@ pub fn lower_to_microcode(func: SSAFunction) {
         .iter()
         .flat_map(|block| {
             empty()
-                .chain(
-                    block
-                        .borrow()
-                        .phis
-                        .iter()
-                        .flat_map(|phi| phi.srcs.values())
-                        .cloned(),
-                )
-                .chain(
-                    block
-                        .borrow()
-                        .instructions
-                        .iter()
-                        .flat_map(|inst| inst.regs())
-                        .cloned(),
-                )
+                .chain(block.borrow().phis.iter().map(|phi| phi.dest.0))
+                .chain(block.borrow().instructions.iter().map(|inst| inst.lhs.0))
                 .collect_vec()
         })
         .map(|reg| (reg, find_liveness(&lowered_blocks, reg)))

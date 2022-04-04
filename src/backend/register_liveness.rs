@@ -73,56 +73,51 @@ where
 {
     let mut out: HashMap<RcEquality<_>, _> = HashMap::new();
     let mut todo = vec![];
-    for block in blocks {
-        let mut latest_use = None;
-
+    'blocks: for block in blocks {
         if block.borrow().exit.regs().contains(&reg) {
-            latest_use = Some(ConsumingPosition::<Block<RValue>>::Jump);
+            todo.push((block.clone(), ConsumingPosition::<Block<RValue>>::Jump));
+            continue 'blocks;
         }
 
-        if latest_use.is_none() {
-            for (index, inst) in block.borrow().instructions.iter().enumerate().rev() {
-                if inst.regs().contains(&reg) {
-                    latest_use = Some(ConsumingPosition::Instruction(index));
-                    todo.push((block.clone(), ConsumingPosition::Instruction(index)));
-                    break;
-                }
+        for (index, inst) in block.borrow().instructions.iter().enumerate().rev() {
+            if inst.regs().contains(&reg) {
+                todo.push((block.clone(), ConsumingPosition::Instruction(index)));
+                continue 'blocks;
             }
         }
 
-        if latest_use.is_none() {
-            for (index, phi) in block.borrow().phis.iter().enumerate().rev() {
-                if let Some((pred_block, _)) = phi.srcs.iter().find(|(_block, src)| **src == reg) {
-                    if latest_use.is_none() {
-                        let position = {
-                            ConsumingPosition::Phi(PhiConsumer {
-                                index,
-                                src: pred_block.0.clone().into(),
-                            })
-                        };
-                        out.insert(
-                            block.clone().into(),
-                            RegisterLiveness {
-                                since_index: DefiningPosition::Before,
-                                until_index: position,
-                            },
-                        );
-                    }
-                    todo.push((
-                        pred_block
-                            .get_ref()
-                            .upgrade()
-                            .expect("phis should not point to dropped blocks")
-                            .clone(),
-                        ConsumingPosition::After,
-                    ));
-                    break;
+        let mut found = false;
+        for (index, phi) in block.borrow().phis.iter().enumerate().rev() {
+            if let Some((pred_block, _)) = phi.srcs.iter().find(|(_block, src)| **src == reg) {
+                if !found {
+                    found = true;
+                    let position = {
+                        ConsumingPosition::Phi(PhiConsumer {
+                            index,
+                            src: pred_block.0.clone().into(),
+                        })
+                    };
+                    out.insert(
+                        block.clone().into(),
+                        RegisterLiveness {
+                            since_index: DefiningPosition::Before,
+                            until_index: position,
+                        },
+                    );
                 }
+                todo.push((
+                    pred_block
+                        .get_ref()
+                        .upgrade()
+                        .expect("phis should not point to dropped blocks")
+                        .clone(),
+                    ConsumingPosition::After,
+                ));
             }
         }
     }
 
-    while let Some((block, latest_use)) = todo.pop() {
+    'todo: while let Some((block, latest_use)) = todo.pop() {
         let liveness = out.get(&block.as_key());
         if let Some(liveness) = liveness {
             if matches!(liveness.until_index, ConsumingPosition::After) {
@@ -130,37 +125,35 @@ where
                 continue;
             }
         }
-        let entry = out.entry(block.clone().into()).or_insert(RegisterLiveness {
-            since_index: DefiningPosition::Before,
-            until_index: ConsumingPosition::After,
-        });
 
-        // todo: some kind of max? what if the block appears twice in the todo? could we accidentally clobber?
-        entry.until_index = latest_use;
+        let entry = out
+            .entry(block.clone().into())
+            // invariant: only one non-AFTER latest_use will be in todo per block, so we can use this to simplfify the max
+            .and_modify(|e| e.until_index = ConsumingPosition::After)
+            .or_insert(RegisterLiveness {
+                since_index: DefiningPosition::Before,
+                until_index: latest_use,
+            });
+
         // check to see if consumer is the definer
-        let mut found = false;
         for (i, phi) in block.borrow().phis.iter().enumerate() {
             if phi.dest.0 == reg {
                 entry.since_index = DefiningPosition::Phi(i);
-                found = true;
-                break;
+                continue 'todo;
             }
         }
         for (i, inst) in block.borrow().instructions.iter().enumerate() {
             if inst.lhs.0 == reg {
                 entry.since_index = DefiningPosition::Instruction(i);
-                found = true;
-                break;
+                continue 'todo;
             }
         }
-        if !found {
-            todo.extend(
-                block
-                    .borrow()
-                    .preds()
-                    .map(|pred| (pred, ConsumingPosition::After)),
-            )
-        }
+        todo.extend(
+            block
+                .borrow()
+                .preds()
+                .map(|pred| (pred, ConsumingPosition::After)),
+        )
     }
 
     out

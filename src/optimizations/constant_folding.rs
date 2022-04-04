@@ -160,7 +160,7 @@ pub fn constant_folding(func: &mut SSAFunction) {
                     SSAInstructionRHS::LoadIntegerLiteral { value },
                 )),
                 RegisterValue::Variable => {
-                    panic!("unexpected pattern mismatch, phi var must have constant val")
+                    unreachable!("unexpected pattern mismatch, phi var must have constant val")
                 }
             });
         for inst in &mut block.instructions {

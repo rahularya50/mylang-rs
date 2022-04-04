@@ -174,8 +174,28 @@ pub fn lowered_insts(
                 },
             ]
         }
-        SSAInstructionRHS::LoadIntegerLiteral { value: _ } => {
-            todo!("implement integer generation")
+        SSAInstructionRHS::LoadIntegerLiteral { value } => {
+            let temp @ VirtualRegisterLValue(temp_ref) = func.new_reg();
+            match value {
+                1 => vec![LoweredInstruction {
+                    lhs: inst.lhs,
+                    rhs: LoweredInstructionRHS::LoadOneImmediate,
+                }],
+                0 => vec![
+                    LoweredInstruction {
+                        lhs: temp,
+                        rhs: LoweredInstructionRHS::LoadOneImmediate,
+                    },
+                    LoweredInstruction {
+                        lhs: inst.lhs,
+                        rhs: LoweredInstructionRHS::UnaryALU {
+                            operator: UnaryALUOperator::Dec1,
+                            arg: temp_ref,
+                        },
+                    },
+                ],
+                _ => todo!("implement integer generation (aside from 0 and 1)"),
+            }
         }
         SSAInstructionRHS::Move { src } => {
             println!("unexpected reg move in lowered IR");
