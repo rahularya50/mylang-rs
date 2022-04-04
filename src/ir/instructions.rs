@@ -4,6 +4,7 @@ use std::fmt::{self, Debug, Display, Formatter};
 use std::hash::Hash;
 use std::rc::Rc;
 
+use super::ssa_forms::CfgConfig;
 use super::structs::{BlockWithDebugIndex, RegisterLValue, WithRegisters};
 use crate::semantics::{BinaryOperator, UnaryOperator};
 use crate::utils::frame::Frame;
@@ -96,21 +97,20 @@ impl<RegType> WithRegisters<RegType> for InstructionRHS<RegType> {
 }
 
 #[derive(Debug)]
-pub struct Instruction<LValue, RValue> {
-    pub lhs: LValue,
-    pub rhs: RValue,
+pub struct Instruction<Conf: CfgConfig> {
+    pub lhs: Conf::LValue,
+    pub rhs: Conf::RHSType,
 }
 
-impl<LValue, RValue> Instruction<LValue, RValue> {
-    pub fn new(lhs: LValue, rhs: RValue) -> Self {
+impl<Conf: CfgConfig> Instruction<Conf> {
+    pub fn new(lhs: Conf::LValue, rhs: Conf::RHSType) -> Self {
         Self { lhs, rhs }
     }
 }
 
-impl<LValue: RegisterLValue + Display> Display
-    for Instruction<LValue, InstructionRHS<LValue::RValue>>
+impl<Conf: CfgConfig<RHSType = InstructionRHS<T>>, T: Display> Display for Instruction<Conf>
 where
-    LValue::RValue: Display,
+    Conf::LValue: Display,
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{} = ", self.lhs)?;
@@ -142,20 +142,20 @@ where
 }
 
 #[derive(Debug)]
-pub enum JumpInstruction<RegType, BlockType> {
+pub enum JumpInstruction<Conf: CfgConfig> {
     BranchIfElseZero {
-        pred: RegType,
-        conseq: Rc<RefCell<BlockType>>,
-        alt: Rc<RefCell<BlockType>>,
+        pred: Conf::RValue,
+        conseq: Rc<RefCell<Conf::BlockType>>,
+        alt: Rc<RefCell<Conf::BlockType>>,
     },
     UnconditionalJump {
-        dest: Rc<RefCell<BlockType>>,
+        dest: Rc<RefCell<Conf::BlockType>>,
     },
-    Ret(Option<RegType>),
+    Ret(Option<Conf::RValue>),
 }
 
-impl<RegType, BlockType> JumpInstruction<RegType, BlockType> {
-    pub fn dests(&self) -> impl Iterator<Item = &Rc<RefCell<BlockType>>> {
+impl<Conf: CfgConfig> JumpInstruction<Conf> {
+    pub fn dests(&self) -> impl Iterator<Item = &Rc<RefCell<Conf::BlockType>>> {
         (match self {
             JumpInstruction::BranchIfElseZero { conseq, alt, .. } => {
                 vec![conseq, alt]
@@ -166,7 +166,7 @@ impl<RegType, BlockType> JumpInstruction<RegType, BlockType> {
         .into_iter()
     }
 
-    pub fn dests_mut(&mut self) -> impl Iterator<Item = &mut Rc<RefCell<BlockType>>> {
+    pub fn dests_mut(&mut self) -> impl Iterator<Item = &mut Rc<RefCell<Conf::BlockType>>> {
         (match self {
             JumpInstruction::BranchIfElseZero { conseq, alt, .. } => {
                 vec![conseq, alt]
@@ -177,13 +177,17 @@ impl<RegType, BlockType> JumpInstruction<RegType, BlockType> {
         .into_iter()
     }
 
-    pub fn map_reg_block_types<NewRegType: Copy, NewBlockType>(
+    pub fn map_reg_block_types<NewConf: CfgConfig>(
         &self,
-        frame: &Frame<RegType, NewRegType>,
-        block_lookup: &HashMap<RcEquality<Rc<RefCell<BlockType>>>, Rc<RefCell<NewBlockType>>>,
-    ) -> Option<JumpInstruction<NewRegType, NewBlockType>>
+        frame: &Frame<Conf::RValue, NewConf::RValue>,
+        block_lookup: &HashMap<
+            RcEquality<Rc<RefCell<Conf::BlockType>>>,
+            Rc<RefCell<NewConf::BlockType>>,
+        >,
+    ) -> Option<JumpInstruction<NewConf>>
     where
-        RegType: Hash + Eq,
+        Conf::RValue: Hash,
+        NewConf::LValue: Hash + Eq,
     {
         Some(match self {
             JumpInstruction::BranchIfElseZero { pred, conseq, alt } => {
@@ -204,8 +208,8 @@ impl<RegType, BlockType> JumpInstruction<RegType, BlockType> {
     }
 }
 
-impl<RegType, BlockType> WithRegisters<RegType> for JumpInstruction<RegType, BlockType> {
-    fn regs(&self) -> <Vec<&RegType> as IntoIterator>::IntoIter {
+impl<Conf: CfgConfig> WithRegisters<Conf::RValue> for JumpInstruction<Conf> {
+    fn regs(&self) -> <Vec<&Conf::RValue> as IntoIterator>::IntoIter {
         (match self {
             JumpInstruction::BranchIfElseZero { pred, .. } => {
                 vec![pred]
@@ -216,7 +220,7 @@ impl<RegType, BlockType> WithRegisters<RegType> for JumpInstruction<RegType, Blo
         .into_iter()
     }
 
-    fn regs_mut(&mut self) -> <Vec<&mut RegType> as IntoIterator>::IntoIter {
+    fn regs_mut(&mut self) -> <Vec<&mut Conf::RValue> as IntoIterator>::IntoIter {
         (match self {
             JumpInstruction::BranchIfElseZero { pred, .. } => {
                 vec![pred]
@@ -228,8 +232,9 @@ impl<RegType, BlockType> WithRegisters<RegType> for JumpInstruction<RegType, Blo
     }
 }
 
-impl<RegType: Display, BlockType: BlockWithDebugIndex> Display
-    for JumpInstruction<RegType, BlockType>
+impl<Conf: CfgConfig> Display for JumpInstruction<Conf>
+where
+    Conf::RValue: Display,
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {

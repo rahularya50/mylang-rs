@@ -7,9 +7,9 @@ use itertools::Itertools;
 use super::dominance::BlockDataLookup;
 use super::instructions::Instruction;
 use super::structs::{
-    BlockRef, Function, Phi, VirtualRegister, VirtualRegisterLValue, VirtualVariable,
+    BlockRef, Phi, VirtualRegister, VirtualRegisterLValue, VirtualVariable,
 };
-use super::SSABlock;
+use super::{SSABlock, SSAFunction};
 use crate::utils::frame::Frame;
 use crate::utils::graph::explore;
 use crate::utils::rcequality::{RcDereferencable, RcEquality};
@@ -43,8 +43,8 @@ pub fn defining_blocks_for_variables(
     out
 }
 
-pub fn ssa_phis<T>(
-    func: &mut Function<VirtualRegisterLValue, T>,
+pub fn ssa_phis(
+    func: &mut SSAFunction,
     variable_defns: &HashMap<VirtualVariable, HashSet<RcEquality<BlockRef>>>,
     frontiers: &BlockDataLookup<Vec<BlockRef>>,
 ) -> BlockDataLookup<HashMap<VirtualVariable, VirtualRegisterLValue>> {
@@ -69,8 +69,8 @@ pub fn ssa_phis<T>(
     out
 }
 
-pub fn alloc_ssa_blocks<T>(
-    func: &mut Function<T, SSABlock>,
+pub fn alloc_ssa_blocks(
+    func: &mut SSAFunction,
     blocks: &[BlockRef],
 ) -> BlockDataLookup<Rc<RefCell<SSABlock>>> {
     let mut out = HashMap::new();
@@ -83,8 +83,8 @@ pub fn alloc_ssa_blocks<T>(
 type VirtualRegisterFrameLookup = BlockDataLookup<Frame<VirtualVariable, VirtualRegister>>;
 type PhiVariableReverseLookup = BlockDataLookup<HashMap<VirtualRegister, VirtualVariable>>;
 
-pub fn populate_ssa_blocks<T>(
-    func: &mut Function<VirtualRegisterLValue, T>,
+pub fn populate_ssa_blocks(
+    func: &mut SSAFunction,
     start_block: BlockRef,
     mut phis: BlockDataLookup<HashMap<VirtualVariable, VirtualRegisterLValue>>,
     dominated: &BlockDataLookup<Vec<BlockRef>>,

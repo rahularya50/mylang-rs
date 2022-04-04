@@ -4,14 +4,12 @@ use itertools::Itertools;
 
 use crate::ir::{SSAFunction, SSAInstruction, SSAJumpInstruction, SSAPhi, WithRegisters};
 
-#[derive(Debug)]
 enum RegisterUsage<'a> {
     Assignment(&'a SSAInstruction),
     Jump(&'a SSAJumpInstruction),
     Phi(&'a SSAPhi),
 }
 
-#[derive(Debug)]
 enum RegisterDefinition<'a> {
     Assignment(&'a SSAInstruction),
     Phi(&'a SSAPhi),

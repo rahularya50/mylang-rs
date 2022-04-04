@@ -1,16 +1,13 @@
-use std::borrow::Borrow;
 use std::cell::RefCell;
-use std::collections::HashMap;
-use std::iter::empty;
 use std::rc::Rc;
 
 use itertools::Itertools;
 
-use super::instructions::LoweredInstruction;
+use super::instructions::{LoweredInstructionRHS};
 use crate::backend::lower_func::lower;
 use crate::backend::microcode::instructions::lowered_insts;
 use crate::ir::{
-    FullBlock, JumpInstruction, Phi, SSAFunction, SSAInstruction, SSAJumpInstruction,
+    CfgConfig, FullBlock, JumpInstruction, SSAFunction, SSAJumpInstruction, VirtualRegister,
     VirtualRegisterLValue,
 };
 use crate::utils::rcequality::RcDereferencable;
@@ -21,9 +18,17 @@ enum RegisterUse {
     Mixed,
 }
 
-pub fn gen_lowered_blocks(
-    func: SSAFunction,
-) -> Vec<Rc<RefCell<FullBlock<LoweredInstruction, VirtualRegisterLValue>>>> {
+#[derive(Debug)]
+pub struct MicrocodeConfig;
+
+impl CfgConfig for MicrocodeConfig {
+    type LValue = VirtualRegisterLValue;
+    type RValue = VirtualRegister;
+    type RHSType = LoweredInstructionRHS;
+    type BlockType = FullBlock<Self>;
+}
+
+pub fn gen_lowered_blocks(func: SSAFunction) -> Vec<Rc<RefCell<FullBlock<MicrocodeConfig>>>> {
     let mut input_cnt = 0;
     lower(
         func,

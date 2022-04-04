@@ -7,11 +7,13 @@ use self::dominance::{
 use self::gen::gen_expr;
 use self::instructions::InstructionRHS;
 pub use self::instructions::{Instruction, JumpInstruction};
+pub use self::ssa_forms::CfgConfig;
+use self::ssa_forms::{SSAConfig, InitialCfg};
 use self::ssa_transform::{
     alloc_ssa_blocks, backfill_ssa_phis, defining_blocks_for_variables, populate_ssa_blocks,
     ssa_phis,
 };
-use self::structs::{Block, VirtualVariable};
+
 pub use self::structs::{
     FullBlock, Function, Phi, RegisterLValue, VirtualRegister, VirtualRegisterLValue, WithRegisters,
 };
@@ -21,15 +23,16 @@ use crate::utils::frame::Frame;
 mod dominance;
 mod gen;
 mod instructions;
+mod ssa_forms;
 mod ssa_transform;
 mod structs;
 
-pub type SSABlock = FullBlock<SSAInstruction, VirtualRegisterLValue>;
-pub type SSAPhi = Phi<SSAInstruction, VirtualRegisterLValue>;
-pub type SSAFunction = Function<VirtualRegisterLValue, SSABlock>;
-pub type SSAInstruction = Instruction<VirtualRegisterLValue, SSAInstructionRHS>;
+pub type SSABlock = FullBlock<SSAConfig>;
+pub type SSAPhi = Phi<SSAConfig>;
+pub type SSAFunction = Function<SSAConfig>;
+pub type SSAInstruction = Instruction<SSAConfig>;
 pub type SSAInstructionRHS = InstructionRHS<VirtualRegister>;
-pub type SSAJumpInstruction = JumpInstruction<VirtualRegister, SSABlock>;
+pub type SSAJumpInstruction = JumpInstruction<SSAConfig>;
 
 pub fn gen_ir(program: &Program<FuncDefinition>) -> Result<Program<SSAFunction>> {
     let funcs = program
@@ -37,7 +40,7 @@ pub fn gen_ir(program: &Program<FuncDefinition>) -> Result<Program<SSAFunction>>
         .iter()
         .map(|(func_name, func_def)| {
             let mut frame = Frame::new();
-            let mut func: Function<VirtualVariable, Block> = Function::new();
+            let mut func: Function<InitialCfg> = Function::new();
 
             let start_block = func.new_block();
 

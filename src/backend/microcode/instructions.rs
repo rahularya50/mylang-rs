@@ -1,12 +1,13 @@
 use std::fmt::{self, Display, Formatter};
 
+use super::lower::MicrocodeConfig;
 use crate::ir::{
-    FullBlock, Function, Instruction, SSABlock, SSAFunction, SSAInstruction, SSAInstructionRHS,
-    VirtualRegister, VirtualRegisterLValue, WithRegisters,
+    Function, Instruction, SSABlock, SSAInstruction,
+    SSAInstructionRHS, VirtualRegister, VirtualRegisterLValue, WithRegisters,
 };
 use crate::semantics::{BinaryOperator, UnaryOperator};
 
-pub type LoweredInstruction = Instruction<VirtualRegisterLValue, LoweredInstructionRHS>;
+pub type LoweredInstruction = Instruction<MicrocodeConfig>;
 
 #[derive(Copy, Clone, Debug)]
 pub enum UnaryALUOperator {
@@ -52,9 +53,9 @@ pub enum LoweredInstructionRHS {
     },
 }
 
-impl WithRegisters<VirtualRegister> for LoweredInstruction {
+impl WithRegisters<VirtualRegister> for LoweredInstructionRHS {
     fn regs(&self) -> <Vec<&VirtualRegister> as IntoIterator>::IntoIter {
-        match &self.rhs {
+        match self {
             LoweredInstructionRHS::UnaryALU { operator: _, arg } => vec![arg],
             LoweredInstructionRHS::BinaryALU {
                 operator: _,
@@ -71,7 +72,7 @@ impl WithRegisters<VirtualRegister> for LoweredInstruction {
     }
 
     fn regs_mut(&mut self) -> <Vec<&mut VirtualRegister> as IntoIterator>::IntoIter {
-        match &mut self.rhs {
+        match self {
             LoweredInstructionRHS::UnaryALU { operator: _, arg } => vec![arg],
             LoweredInstructionRHS::BinaryALU {
                 operator: _,
@@ -112,10 +113,7 @@ impl Display for LoweredInstruction {
 }
 
 pub fn lowered_insts(
-    func: &mut Function<
-        VirtualRegisterLValue,
-        FullBlock<LoweredInstruction, VirtualRegisterLValue>,
-    >,
+    func: &mut Function<MicrocodeConfig>,
     inst: SSAInstruction,
     input_cnt: &mut u8,
 ) -> impl IntoIterator<Item = LoweredInstruction> {

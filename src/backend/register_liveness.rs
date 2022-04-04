@@ -1,14 +1,13 @@
 use std::cell::RefCell;
 use std::cmp::Ordering;
 use std::collections::HashMap;
-use std::mem::discriminant;
 use std::rc::{Rc, Weak};
 
 use itertools::Itertools;
 
-use super::microcode::Block;
 use crate::ir::{
-    Instruction, RegisterLValue, VirtualRegister, VirtualRegisterLValue, WithRegisters,
+    CfgConfig, FullBlock, RegisterLValue,
+    WithRegisters,
 };
 use crate::utils::rcequality::{RcDereferencable, RcEquality};
 
@@ -66,23 +65,20 @@ pub struct RegisterLiveness<BType> {
     pub until_index: ConsumingPosition<BType>,
 }
 
-pub fn find_liveness<RValue>(
-    blocks: &Vec<Rc<RefCell<Block<RValue>>>>,
-    reg: VirtualRegister,
-) -> HashMap<RcEquality<Rc<RefCell<Block<RValue>>>>, RegisterLiveness<Block<RValue>>>
-where
-    Instruction<VirtualRegisterLValue, RValue>: WithRegisters<VirtualRegister>,
-{
+pub fn find_liveness<Conf: CfgConfig>(
+    blocks: &Vec<Rc<RefCell<FullBlock<Conf>>>>,
+    reg: Conf::RValue,
+) -> HashMap<RcEquality<Rc<RefCell<FullBlock<Conf>>>>, RegisterLiveness<FullBlock<Conf>>> {
     let mut out: HashMap<RcEquality<_>, _> = HashMap::new();
     let mut todo = vec![];
     'blocks: for block in blocks {
         if block.borrow().exit.regs().contains(&reg) {
-            todo.push((block.clone(), ConsumingPosition::<Block<RValue>>::Jump));
+            todo.push((block.clone(), ConsumingPosition::<FullBlock<Conf>>::Jump));
             continue 'blocks;
         }
 
         for (index, inst) in block.borrow().instructions.iter().enumerate().rev() {
-            if inst.regs().contains(&reg) {
+            if inst.rhs.regs().contains(&reg) {
                 todo.push((block.clone(), ConsumingPosition::Instruction(index)));
                 continue 'blocks;
             }
@@ -139,13 +135,13 @@ where
 
         // check to see if consumer is the definer
         for (i, phi) in block.borrow().phis.iter().enumerate() {
-            if phi.dest.0 == reg {
+            if phi.dest.rvalue() == reg {
                 entry.since_index = DefiningPosition::Phi(i);
                 continue 'todo;
             }
         }
         for (i, inst) in block.borrow().instructions.iter().enumerate() {
-            if inst.lhs.0 == reg {
+            if inst.lhs.rvalue() == reg {
                 entry.since_index = DefiningPosition::Instruction(i);
                 continue 'todo;
             }

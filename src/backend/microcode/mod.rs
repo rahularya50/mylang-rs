@@ -6,12 +6,10 @@ use itertools::Itertools;
 use self::lower::gen_lowered_blocks;
 use super::register_coloring::{build_register_graph, color_registers};
 use super::register_liveness::find_liveness;
-use crate::ir::{FullBlock, Instruction, SSAFunction, VirtualRegisterLValue};
+use crate::ir::SSAFunction;
 
 mod instructions;
 mod lower;
-
-pub type Block<RValue> = FullBlock<Instruction<VirtualRegisterLValue, RValue>, VirtualRegisterLValue>;
 
 pub fn lower_to_microcode(func: SSAFunction) {
     let lowered_blocks = gen_lowered_blocks(func).into_iter().collect_vec();
@@ -31,6 +29,6 @@ pub fn lower_to_microcode(func: SSAFunction) {
     }
 
     let register_conflicts = build_register_graph(&register_lifetimes);
-    let register_allocation = color_registers(&register_conflicts, 2);
+    let _register_allocation = color_registers(&register_conflicts, 2);
     // lowered_blocks.into_iter().map(|block| block.borrow_mut());
 }

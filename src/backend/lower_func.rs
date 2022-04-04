@@ -4,50 +4,34 @@ use std::rc::Rc;
 
 use itertools::Itertools;
 
-use crate::ir::{FullBlock, Function, JumpInstruction, Phi, RegisterLValue};
+use crate::ir::{
+    CfgConfig, FullBlock, Function, Instruction, JumpInstruction, Phi, RegisterLValue,
+};
 use crate::utils::rcequality::{RcDereferencable, RcEquality};
 
 pub fn lower<
-    RegType: RegisterLValue,
-    IType,
-    NewRegType: RegisterLValue,
-    NewIType,
-    InstIter: IntoIterator<Item = NewIType>,
-    JmpInstIter: IntoIterator<Item = NewIType>,
-    InstMapper: FnMut(
-        &mut Function<NewRegType, FullBlock<NewIType, NewRegType>>,
-        &HashMap<
-            RcEquality<Rc<RefCell<FullBlock<IType, RegType>>>>,
-            Rc<RefCell<FullBlock<NewIType, NewRegType>>>,
-        >,
-        IType,
-    ) -> InstIter,
-    JmpMapper: FnMut(
-        &mut Function<NewRegType, FullBlock<NewIType, NewRegType>>,
-        &HashMap<
-            RcEquality<Rc<RefCell<FullBlock<IType, RegType>>>>,
-            Rc<RefCell<FullBlock<NewIType, NewRegType>>>,
-        >,
-        JumpInstruction<RegType::RValue, FullBlock<IType, RegType>>,
-    ) -> (
-        JmpInstIter,
-        JumpInstruction<NewRegType::RValue, FullBlock<NewIType, NewRegType>>,
-    ),
-    LValueMapper: FnMut(RegType) -> NewRegType,
-    RValueMapper: FnMut(RegType::RValue) -> NewRegType::RValue,
+    Conf: CfgConfig<BlockType = FullBlock<Conf>>,
+    NewConf: CfgConfig<BlockType = FullBlock<NewConf>>,
+    InstIter: IntoIterator<Item = Instruction<NewConf>>,
+    JmpInstIter: IntoIterator<Item = Instruction<NewConf>>,
 >(
-    func: Function<RegType, FullBlock<IType, RegType>>,
-    mut map_inst: InstMapper,
-    mut map_jump: JmpMapper,
-    mut map_lvalues: LValueMapper,
-    mut map_rvalues: RValueMapper,
-) -> Function<NewRegType, FullBlock<NewIType, NewRegType>> {
+    func: Function<Conf>,
+    mut map_inst: impl FnMut(
+        &mut Function<NewConf>,
+        &HashMap<RcEquality<Rc<RefCell<FullBlock<Conf>>>>, Rc<RefCell<FullBlock<NewConf>>>>,
+        Instruction<Conf>,
+    ) -> InstIter,
+    mut map_jump: impl FnMut(
+        &mut Function<NewConf>,
+        &HashMap<RcEquality<Rc<RefCell<FullBlock<Conf>>>>, Rc<RefCell<FullBlock<NewConf>>>>,
+        JumpInstruction<Conf>,
+    ) -> (JmpInstIter, JumpInstruction<NewConf>),
+    mut map_lvalues: impl FnMut(Conf::LValue) -> NewConf::LValue,
+    mut map_rvalues: impl FnMut(Conf::RValue) -> NewConf::RValue,
+) -> Function<NewConf> {
     let mut block_lookup = HashMap::new();
     for block in func.blocks() {
-        block_lookup.insert(
-            block.into(),
-            Rc::new(RefCell::new(FullBlock::<NewIType, NewRegType>::default())),
-        );
+        block_lookup.insert(block.into(), Rc::new(RefCell::new(FullBlock::default())));
     }
     let new_start_block = block_lookup[&func.start_block.as_key()].clone();
     let old_blocks = func.blocks().collect_vec();

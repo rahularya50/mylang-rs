@@ -1,7 +1,8 @@
 use anyhow::{bail, Context, Result};
 
 use super::instructions::{Instruction, InstructionRHS, JumpInstruction};
-use super::structs::{Block, BlockRef, Function, VirtualVariable};
+use super::ssa_forms::InitialCfg;
+use super::structs::{BlockRef, Function, VirtualVariable};
 use crate::semantics::Expr;
 use crate::utils::frame::Frame;
 
@@ -12,7 +13,7 @@ pub struct LoopContext {
 
 pub fn gen_expr(
     expr: &Expr,
-    func: &mut Function<VirtualVariable, Block>,
+    func: &mut Function<InitialCfg>,
     frame: &mut Frame<String, VirtualVariable>,
     loops: &mut Vec<LoopContext>,
     mut block: BlockRef,
@@ -56,16 +57,11 @@ pub fn gen_expr(
             let out = func.new_reg();
             block.borrow_mut().instructions.push(Instruction::new(
                 out,
-                InstructionRHS::ReadMemory(
-                    arg.context("cannot pass a statement as an argument")?,
-                ),
+                InstructionRHS::ReadMemory(arg.context("cannot pass a statement as an argument")?),
             ));
             (Some(out), block)
         }
-        Expr::UnaryOp {
-            operator,
-            arg,
-        } => {
+        Expr::UnaryOp { operator, arg } => {
             let (arg, block) = gen_expr(arg, func, frame, loops, block)?;
             let out = func.new_reg();
             block.borrow_mut().instructions.push(Instruction::new(
