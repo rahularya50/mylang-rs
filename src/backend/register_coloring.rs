@@ -61,7 +61,7 @@ pub fn build_register_graph<RType>(
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub struct PhysicalRegister {
-    pub index: u8,
+    pub index: usize,
 }
 
 pub enum RegisterAllocation {
@@ -92,8 +92,8 @@ pub fn color_registers(
     let mut coloring = HashMap::new();
     let mut colorcounts = HashMap::new();
 
-    for reg in ordering {
-        'indices: for index in 0.. {
+    'regs: for reg in ordering {
+        'indices: for index in 0..graph.len() {
             let candidate_reg = PhysicalRegister { index };
             for neighbor in &graph[reg] {
                 if let Some(color) = coloring.get(neighbor) {
@@ -105,7 +105,9 @@ pub fn color_registers(
             }
             coloring.insert(*reg, candidate_reg);
             *colorcounts.entry(candidate_reg).or_insert(0) += 1;
+            continue 'regs;
         }
+        unreachable!("N colors should always suffice")
     }
 
     let spilled_colors = HashSet::<_>::from_iter(

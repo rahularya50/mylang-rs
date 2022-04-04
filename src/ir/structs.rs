@@ -30,6 +30,20 @@ impl<RegType, BlockType: BlockWithDebugIndex> Function<RegType, BlockType> {
         }
     }
 
+    pub fn lower<NewRegType, NewBlockType>(
+        self,
+        start_block: Rc<RefCell<NewBlockType>>,
+        blocks: Vec<Weak<RefCell<NewBlockType>>>,
+    ) -> Function<NewRegType, NewBlockType> {
+        Function {
+            reg_counter: self.reg_counter,
+            block_counter: self.block_counter,
+            start_block,
+            blocks,
+            _reg: PhantomData,
+        }
+    }
+
     pub fn new_block(&mut self) -> Rc<RefCell<BlockType>> {
         let next_counter = self.block_counter.map(|x| x + 1).unwrap_or_default();
         let out = Rc::new(RefCell::new(BlockType::new_with_index(next_counter)));
@@ -94,7 +108,7 @@ pub trait WithRegisters<RType> {
 pub struct Block {
     pub(super) debug_index: u16,
     pub instructions: Vec<Instruction<VirtualVariable, InstructionRHS<VirtualVariable>>>,
-    pub exit: JumpInstruction<VirtualVariable, Block>,
+    pub exit: JumpInstruction<VirtualVariable, Self>,
 }
 
 pub type BlockRef = Rc<RefCell<Block>>;
@@ -125,15 +139,16 @@ impl Display for Block {
 }
 
 #[derive(Debug)]
-pub struct FullBlock<IType> {
+pub struct FullBlock<IType, RType: RegisterLValue> {
+    // todo: constrain IType to have an LHS = RType
     pub debug_index: u16,
     pub preds: HashSet<RcEquality<Weak<RefCell<Self>>>>,
-    pub phis: Vec<Phi<IType>>,
+    pub phis: Vec<Phi<IType, RType>>,
     pub instructions: Vec<IType>,
-    pub exit: JumpInstruction<VirtualRegister, Self>,
+    pub exit: JumpInstruction<RType::RValue, Self>,
 }
 
-impl<IType> FullBlock<IType> {
+impl<IType, RType: RegisterLValue> FullBlock<IType, RType> {
     pub fn preds(&self) -> impl Iterator<Item = Rc<RefCell<Self>>> + '_ {
         self.preds
             .iter()
@@ -141,7 +156,7 @@ impl<IType> FullBlock<IType> {
     }
 }
 
-impl<IType> BlockWithDebugIndex for FullBlock<IType> {
+impl<IType, RType: RegisterLValue> BlockWithDebugIndex for FullBlock<IType, RType> {
     fn new_with_index(debug_index: u16) -> Self {
         Self {
             debug_index,
@@ -157,7 +172,7 @@ impl<IType> BlockWithDebugIndex for FullBlock<IType> {
     }
 }
 
-impl<IType> Default for FullBlock<IType> {
+impl<IType, RType: RegisterLValue> Default for FullBlock<IType, RType> {
     fn default() -> Self {
         Self {
             debug_index: 0,
@@ -169,7 +184,10 @@ impl<IType> Default for FullBlock<IType> {
     }
 }
 
-impl<IType: Display> Display for FullBlock<IType> {
+impl<IType: Display, RType: RegisterLValue + Display> Display for FullBlock<IType, RType>
+where
+    RType::RValue: Display,
+{
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         writeln!(
             f,
@@ -238,12 +256,15 @@ impl Display for VirtualRegisterLValue {
 }
 
 #[derive(Debug)]
-pub struct Phi<IType> {
-    pub srcs: HashMap<RcEquality<Weak<RefCell<FullBlock<IType>>>>, VirtualRegister>,
-    pub dest: VirtualRegisterLValue,
+pub struct Phi<IType, RType: RegisterLValue> {
+    pub srcs: HashMap<RcEquality<Weak<RefCell<FullBlock<IType, RType>>>>, RType::RValue>,
+    pub dest: RType,
 }
 
-impl<IType> Display for Phi<IType> {
+impl<IType, RType: RegisterLValue + Display> Display for Phi<IType, RType>
+where
+    RType::RValue: Display,
+{
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(
             f,
@@ -255,7 +276,12 @@ impl<IType> Display for Phi<IType> {
                     format!(
                         "{} from block {}",
                         reg,
-                        block.get_ref().upgrade().unwrap().borrow().debug_index
+                        block
+                            .get_ref()
+                            .upgrade()
+                            .unwrap()
+                            .borrow()
+                            .get_debug_index()
                     )
                 })
                 .join(", ")

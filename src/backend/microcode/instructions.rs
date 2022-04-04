@@ -1,8 +1,8 @@
 use std::fmt::{self, Display, Formatter};
 
 use crate::ir::{
-    Instruction, SSABlock, SSAFunction, SSAInstruction, SSAInstructionRHS, VirtualRegister,
-    VirtualRegisterLValue, WithRegisters,
+    FullBlock, Function, Instruction, SSABlock, SSAFunction, SSAInstruction, SSAInstructionRHS,
+    VirtualRegister, VirtualRegisterLValue, WithRegisters,
 };
 use crate::semantics::{BinaryOperator, UnaryOperator};
 
@@ -112,7 +112,10 @@ impl Display for LoweredInstruction {
 }
 
 pub fn lowered_insts(
-    func: &mut SSAFunction,
+    func: &mut Function<
+        VirtualRegisterLValue,
+        FullBlock<LoweredInstruction, VirtualRegisterLValue>,
+    >,
     inst: SSAInstruction,
     input_cnt: &mut u8,
 ) -> impl IntoIterator<Item = LoweredInstruction> {

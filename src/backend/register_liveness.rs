@@ -7,7 +7,9 @@ use std::rc::{Rc, Weak};
 use itertools::Itertools;
 
 use super::microcode::Block;
-use crate::ir::{Instruction, VirtualRegister, VirtualRegisterLValue, WithRegisters};
+use crate::ir::{
+    Instruction, RegisterLValue, VirtualRegister, VirtualRegisterLValue, WithRegisters,
+};
 use crate::utils::rcequality::{RcDereferencable, RcEquality};
 
 #[derive(Debug, PartialEq, Eq)]

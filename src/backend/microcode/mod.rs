@@ -4,14 +4,14 @@ use std::iter::empty;
 use itertools::Itertools;
 
 use self::lower::gen_lowered_blocks;
-use super::register_coloring::build_register_graph;
+use super::register_coloring::{build_register_graph, color_registers};
 use super::register_liveness::find_liveness;
-use crate::ir::{FullBlock, Instruction, SSAFunction, VirtualRegisterLValue, WithRegisters};
+use crate::ir::{FullBlock, Instruction, SSAFunction, VirtualRegisterLValue};
 
 mod instructions;
 mod lower;
 
-pub type Block<RValue> = FullBlock<Instruction<VirtualRegisterLValue, RValue>>;
+pub type Block<RValue> = FullBlock<Instruction<VirtualRegisterLValue, RValue>, VirtualRegisterLValue>;
 
 pub fn lower_to_microcode(func: SSAFunction) {
     let lowered_blocks = gen_lowered_blocks(func).into_iter().collect_vec();
@@ -30,21 +30,7 @@ pub fn lower_to_microcode(func: SSAFunction) {
         println!("{}", block.borrow());
     }
 
-    for (reg, lifetimes) in register_lifetimes.iter().sorted_by_key(|(reg, _)| *reg) {
-        println!(
-            "{reg}:\n{}",
-            lifetimes
-                .iter()
-                .sorted_by_key(|(block, _)| block.get_ref().borrow().debug_index)
-                .map(|(block, lifetime)| format!(
-                    "\t{}: {:?}",
-                    block.get_ref().borrow().debug_index,
-                    lifetime
-                ))
-                .join("\n")
-        );
-    }
-
     let register_conflicts = build_register_graph(&register_lifetimes);
-    println!("{:#?}", register_conflicts);
+    let register_allocation = color_registers(&register_conflicts, 2);
+    // lowered_blocks.into_iter().map(|block| block.borrow_mut());
 }
