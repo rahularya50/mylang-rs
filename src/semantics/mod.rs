@@ -52,9 +52,9 @@ pub enum Expr {
     Noop,
     Return(Option<Box<Expr>>),
     Input,
-    UnaryOp{
-        operator: UnaryOperator, 
-        arg: Box<Expr>
+    UnaryOp {
+        operator: UnaryOperator,
+        arg: Box<Expr>,
     },
     ReadMemory(Box<Expr>),
 }
@@ -77,8 +77,11 @@ pub enum BinaryOperator {
 impl BinaryOperator {
     const fn is_variadic(self) -> bool {
         match self {
-            BinaryOperator::Add | BinaryOperator::Mul | BinaryOperator::And | BinaryOperator::Xor => true,
-            BinaryOperator::Sub | BinaryOperator::Div  => false,
+            BinaryOperator::Add
+            | BinaryOperator::Mul
+            | BinaryOperator::And
+            | BinaryOperator::Xor => true,
+            BinaryOperator::Sub | BinaryOperator::Div => false,
         }
     }
 }
@@ -194,7 +197,10 @@ fn analyze_read_memory(operands: &[ParseExpr]) -> Result<Expr> {
 
 fn analyze_unary_operator(operator: UnaryOperator, operands: &[ParseExpr]) -> Result<Expr> {
     Ok(match operands {
-        [expr] => Expr::UnaryOp {operator, arg: Box::new(analyze_expr(expr)?)},
+        [expr] => Expr::UnaryOp {
+            operator,
+            arg: Box::new(analyze_expr(expr)?),
+        },
         _ => bail!("logical not statements have one argument"),
     })
 }

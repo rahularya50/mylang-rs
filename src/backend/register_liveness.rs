@@ -5,10 +5,7 @@ use std::rc::{Rc, Weak};
 
 use itertools::Itertools;
 
-use crate::ir::{
-    CfgConfig, FullBlock, RegisterLValue,
-    WithRegisters,
-};
+use crate::ir::{CfgConfig, FullBlock, Function, RegisterLValue, WithRegisters};
 use crate::utils::rcequality::{RcDereferencable, RcEquality};
 
 #[derive(Debug, PartialEq, Eq)]
@@ -65,13 +62,13 @@ pub struct RegisterLiveness<BType> {
     pub until_index: ConsumingPosition<BType>,
 }
 
-pub fn find_liveness<Conf: CfgConfig>(
-    blocks: &Vec<Rc<RefCell<FullBlock<Conf>>>>,
+pub fn find_liveness<Conf: CfgConfig<BlockType = FullBlock<Conf>>>(
+    func: &Function<Conf>,
     reg: Conf::RValue,
 ) -> HashMap<RcEquality<Rc<RefCell<FullBlock<Conf>>>>, RegisterLiveness<FullBlock<Conf>>> {
     let mut out: HashMap<RcEquality<_>, _> = HashMap::new();
     let mut todo = vec![];
-    'blocks: for block in blocks {
+    'blocks: for block in func.blocks() {
         if block.borrow().exit.regs().contains(&reg) {
             todo.push((block.clone(), ConsumingPosition::<FullBlock<Conf>>::Jump));
             continue 'blocks;

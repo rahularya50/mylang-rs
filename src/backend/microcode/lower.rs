@@ -1,14 +1,9 @@
-use std::cell::RefCell;
-use std::rc::Rc;
-
-use itertools::Itertools;
-
-use super::instructions::{LoweredInstructionRHS};
+use super::instructions::LoweredInstructionRHS;
 use crate::backend::lower_func::lower;
 use crate::backend::microcode::instructions::lowered_insts;
 use crate::ir::{
-    CfgConfig, FullBlock, JumpInstruction, SSAFunction, SSAJumpInstruction, VirtualRegister,
-    VirtualRegisterLValue,
+    CfgConfig, FullBlock, Function, JumpInstruction, SSAFunction, SSAJumpInstruction,
+    VirtualRegister, VirtualRegisterLValue,
 };
 use crate::utils::rcequality::RcDereferencable;
 
@@ -28,7 +23,7 @@ impl CfgConfig for MicrocodeConfig {
     type BlockType = FullBlock<Self>;
 }
 
-pub fn gen_lowered_blocks(func: SSAFunction) -> Vec<Rc<RefCell<FullBlock<MicrocodeConfig>>>> {
+pub fn lower_func(func: SSAFunction) -> Function<MicrocodeConfig> {
     let mut input_cnt = 0;
     lower(
         func,
@@ -56,6 +51,4 @@ pub fn gen_lowered_blocks(func: SSAFunction) -> Vec<Rc<RefCell<FullBlock<Microco
         |lvalue| lvalue,
         |rvalue| rvalue,
     )
-    .blocks()
-    .collect_vec()
 }

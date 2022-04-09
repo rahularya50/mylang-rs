@@ -2,8 +2,8 @@ use std::fmt::{self, Display, Formatter};
 
 use super::lower::MicrocodeConfig;
 use crate::ir::{
-    Function, Instruction, SSABlock, SSAInstruction,
-    SSAInstructionRHS, VirtualRegister, VirtualRegisterLValue, WithRegisters,
+    Function, Instruction, SSABlock, SSAInstruction, SSAInstructionRHS, VirtualRegister,
+    VirtualRegisterLValue, WithRegisters,
 };
 use crate::semantics::{BinaryOperator, UnaryOperator};
 

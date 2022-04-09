@@ -8,12 +8,11 @@ use self::gen::gen_expr;
 use self::instructions::InstructionRHS;
 pub use self::instructions::{Instruction, JumpInstruction};
 pub use self::ssa_forms::CfgConfig;
-use self::ssa_forms::{SSAConfig, InitialCfg};
+use self::ssa_forms::{InitialCfg, SSAConfig};
 use self::ssa_transform::{
     alloc_ssa_blocks, backfill_ssa_phis, defining_blocks_for_variables, populate_ssa_blocks,
     ssa_phis,
 };
-
 pub use self::structs::{
     FullBlock, Function, Phi, RegisterLValue, VirtualRegister, VirtualRegisterLValue, WithRegisters,
 };

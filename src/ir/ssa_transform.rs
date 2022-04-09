@@ -6,9 +6,7 @@ use itertools::Itertools;
 
 use super::dominance::BlockDataLookup;
 use super::instructions::Instruction;
-use super::structs::{
-    BlockRef, Phi, VirtualRegister, VirtualRegisterLValue, VirtualVariable,
-};
+use super::structs::{BlockRef, Phi, VirtualRegister, VirtualRegisterLValue, VirtualVariable};
 use super::{SSABlock, SSAFunction};
 use crate::utils::frame::Frame;
 use crate::utils::graph::explore;
