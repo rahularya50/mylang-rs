@@ -1,12 +1,13 @@
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
+use std::fmt::Display;
 use std::rc::Rc;
 
 use itertools::Itertools;
 
 use super::register_liveness::{ConsumingPosition, RegisterLiveness};
 use crate::backend::register_liveness::DefiningPosition;
-use crate::ir::VirtualRegister;
+use crate::ir::{RegisterLValue, VirtualRegister};
 use crate::utils::rcequality::RcEquality;
 
 type RegisterLifetimeLookup<BType> =
@@ -61,12 +62,30 @@ pub fn build_register_graph<RType>(
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub struct PhysicalRegister {
-    pub index: usize,
+    pub index: u16,
 }
 
 pub enum RegisterAllocation {
     Register(PhysicalRegister),
     Spilled,
+}
+
+impl Display for PhysicalRegister {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "#{}", self.index)
+    }
+}
+
+impl RegisterLValue for PhysicalRegister {
+    type RValue = PhysicalRegister;
+
+    fn new(index: u16) -> Self {
+        PhysicalRegister { index }
+    }
+
+    fn rvalue(&self) -> Self::RValue {
+        *self
+    }
 }
 
 // see Section 6 of https://www.cs.cmu.edu/~fp/courses/15411-f13/lectures/03-regalloc.pdf
@@ -93,7 +112,7 @@ pub fn color_registers(
     let mut colorcounts = HashMap::new();
 
     'regs: for reg in ordering {
-        'indices: for index in 0..graph.len() {
+        'indices: for index in 0..graph.len() as u16 {
             let candidate_reg = PhysicalRegister { index };
             for neighbor in &graph[reg] {
                 if let Some(color) = coloring.get(neighbor) {

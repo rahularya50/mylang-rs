@@ -129,7 +129,10 @@ pub fn populate_ssa_blocks(
             ssa_block.borrow_mut().exit = block
                 .borrow_mut()
                 .exit
-                .map_reg_block_types(frame, ssa_blocks)
+                .map_reg_block_types(
+                    |var| frame.lookup(var),
+                    |block| ssa_blocks.get(&block.as_key()).cloned(),
+                )
                 .expect("all registers and blocks should already be defined/mapped");
 
             (

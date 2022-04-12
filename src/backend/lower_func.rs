@@ -4,9 +4,7 @@ use std::rc::Rc;
 
 use itertools::Itertools;
 
-use crate::ir::{
-    CfgConfig, FullBlock, Function, Instruction, JumpInstruction, Phi, RegisterLValue,
-};
+use crate::ir::{CfgConfig, FullBlock, Function, Instruction, JumpInstruction, Phi};
 use crate::utils::rcequality::{RcDereferencable, RcEquality};
 
 pub fn lower<

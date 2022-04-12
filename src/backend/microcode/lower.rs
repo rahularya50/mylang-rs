@@ -19,7 +19,7 @@ pub struct MicrocodeConfig;
 impl CfgConfig for MicrocodeConfig {
     type LValue = VirtualRegisterLValue;
     type RValue = VirtualRegister;
-    type RHSType = LoweredInstructionRHS;
+    type RHSType = LoweredInstructionRHS<VirtualRegister>;
     type BlockType = FullBlock<Self>;
 }
 

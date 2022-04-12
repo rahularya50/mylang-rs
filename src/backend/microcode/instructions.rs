@@ -1,8 +1,10 @@
 use std::fmt::{self, Display, Formatter};
+use std::mem::Discriminant;
 
 use super::lower::MicrocodeConfig;
+use crate::backend::register_coloring::PhysicalRegister;
 use crate::ir::{
-    Function, Instruction, SSABlock, SSAInstruction, SSAInstructionRHS, VirtualRegister,
+    CfgConfig, Function, Instruction, SSABlock, SSAInstruction, SSAInstructionRHS,
     VirtualRegisterLValue, WithRegisters,
 };
 use crate::semantics::{BinaryOperator, UnaryOperator};
@@ -30,31 +32,71 @@ pub enum BinaryALUOperator {
 }
 
 #[derive(Debug)]
-pub enum LoweredInstructionRHS {
+pub enum LoweredInstructionRHS<RegType> {
     UnaryALU {
         operator: UnaryALUOperator,
-        arg: VirtualRegister,
+        arg: RegType,
     },
     BinaryALU {
         operator: BinaryALUOperator,
-        arg1: VirtualRegister,
-        arg2: VirtualRegister,
+        arg1: RegType,
+        arg2: RegType,
     },
     LoadOneImmediate,
-    LoadMemory(VirtualRegister),
+    LoadMemory(RegType),
     StoreMemory {
-        addr: VirtualRegister,
-        data: VirtualRegister,
+        addr: RegType,
+        data: RegType,
     },
     LoadRegister(u8),
     StoreRegister {
         index: u8,
-        value: VirtualRegister,
+        value: RegType,
     },
 }
 
-impl WithRegisters<VirtualRegister> for LoweredInstructionRHS {
-    fn regs(&self) -> <Vec<&VirtualRegister> as IntoIterator>::IntoIter {
+impl<RegType> LoweredInstructionRHS<RegType> {
+    pub fn allocate_registers(
+        self,
+        mut mapper: impl FnMut(RegType) -> PhysicalRegister,
+    ) -> LoweredInstructionRHS<PhysicalRegister> {
+        match self {
+            LoweredInstructionRHS::UnaryALU { operator, arg } => LoweredInstructionRHS::UnaryALU {
+                operator,
+                arg: mapper(arg),
+            },
+            LoweredInstructionRHS::BinaryALU {
+                operator,
+                arg1,
+                arg2,
+            } => LoweredInstructionRHS::BinaryALU {
+                operator,
+                arg1: mapper(arg1),
+                arg2: mapper(arg2),
+            },
+            LoweredInstructionRHS::LoadOneImmediate => LoweredInstructionRHS::LoadOneImmediate,
+            LoweredInstructionRHS::LoadMemory(reg) => {
+                LoweredInstructionRHS::LoadMemory(mapper(reg))
+            }
+            LoweredInstructionRHS::StoreMemory { addr, data } => {
+                LoweredInstructionRHS::StoreMemory {
+                    addr: mapper(addr),
+                    data: mapper(data),
+                }
+            }
+            LoweredInstructionRHS::LoadRegister(i) => LoweredInstructionRHS::LoadRegister(i),
+            LoweredInstructionRHS::StoreRegister { index, value } => {
+                LoweredInstructionRHS::StoreRegister {
+                    index,
+                    value: mapper(value),
+                }
+            }
+        }
+    }
+}
+
+impl<RegType> WithRegisters<RegType> for LoweredInstructionRHS<RegType> {
+    fn regs(&self) -> <Vec<&RegType> as IntoIterator>::IntoIter {
         match self {
             LoweredInstructionRHS::UnaryALU { operator: _, arg } => vec![arg],
             LoweredInstructionRHS::BinaryALU {
@@ -71,7 +113,7 @@ impl WithRegisters<VirtualRegister> for LoweredInstructionRHS {
         .into_iter()
     }
 
-    fn regs_mut(&mut self) -> <Vec<&mut VirtualRegister> as IntoIterator>::IntoIter {
+    fn regs_mut(&mut self) -> <Vec<&mut RegType> as IntoIterator>::IntoIter {
         match self {
             LoweredInstructionRHS::UnaryALU { operator: _, arg } => vec![arg],
             LoweredInstructionRHS::BinaryALU {
@@ -89,10 +131,9 @@ impl WithRegisters<VirtualRegister> for LoweredInstructionRHS {
     }
 }
 
-impl Display for LoweredInstruction {
+impl<T: Display> Display for LoweredInstructionRHS<T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{} = ", self.lhs)?;
-        match &self.rhs {
+        match self {
             LoweredInstructionRHS::LoadMemory(arg) => {
                 write!(f, "read {arg}")
             }

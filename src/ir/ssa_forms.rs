@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use super::instructions::InstructionRHS;
 use super::structs::{Block, BlockWithDebugIndex, VirtualVariable};
-use super::{FullBlock, RegisterLValue, VirtualRegister, VirtualRegisterLValue, WithRegisters};
+use super::{FullBlock, RegisterLValue, VirtualRegister, VirtualRegisterLValue, WithRegisters, Instruction};
 
 pub trait CfgConfig: Debug {
     type LValue: RegisterLValue<RValue = Self::RValue> + Debug;
@@ -30,3 +30,4 @@ impl CfgConfig for SSAConfig {
     type RHSType = InstructionRHS<VirtualRegister>;
     type BlockType = FullBlock<Self>;
 }
+

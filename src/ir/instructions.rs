@@ -1,14 +1,12 @@
 use std::cell::RefCell;
-use std::collections::HashMap;
 use std::fmt::{self, Debug, Display, Formatter};
 use std::hash::Hash;
 use std::rc::Rc;
 
 use super::ssa_forms::CfgConfig;
-use super::structs::{BlockWithDebugIndex, RegisterLValue, WithRegisters};
+use super::structs::{BlockWithDebugIndex, WithRegisters};
 use crate::semantics::{BinaryOperator, UnaryOperator};
 use crate::utils::frame::Frame;
-use crate::utils::rcequality::{RcDereferencable, RcEquality};
 
 #[derive(Debug)]
 pub enum InstructionRHS<RegType> {
@@ -108,13 +106,19 @@ impl<Conf: CfgConfig> Instruction<Conf> {
     }
 }
 
-impl<Conf: CfgConfig<RHSType = InstructionRHS<T>>, T: Display> Display for Instruction<Conf>
+impl<Conf: CfgConfig> Display for Instruction<Conf>
 where
     Conf::LValue: Display,
+    Conf::RHSType: Display,
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{} = ", self.lhs)?;
-        match &self.rhs {
+        write!(f, "{} = {}", self.lhs, self.rhs)
+    }
+}
+
+impl<T: Display> Display for InstructionRHS<T> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
             InstructionRHS::ReadMemory(arg) => {
                 write!(f, "read {arg}")
             }
@@ -179,11 +183,10 @@ impl<Conf: CfgConfig> JumpInstruction<Conf> {
 
     pub fn map_reg_block_types<NewConf: CfgConfig>(
         &self,
-        frame: &Frame<Conf::RValue, NewConf::RValue>,
-        block_lookup: &HashMap<
-            RcEquality<Rc<RefCell<Conf::BlockType>>>,
-            Rc<RefCell<NewConf::BlockType>>,
-        >,
+        mut reg_mapper: impl FnMut(&Conf::RValue) -> Option<NewConf::RValue>,
+        mut block_mapper: impl FnMut(
+            &Rc<RefCell<Conf::BlockType>>,
+        ) -> Option<Rc<RefCell<NewConf::BlockType>>>,
     ) -> Option<JumpInstruction<NewConf>>
     where
         Conf::RValue: Hash,
@@ -192,16 +195,16 @@ impl<Conf: CfgConfig> JumpInstruction<Conf> {
         Some(match self {
             JumpInstruction::BranchIfElseZero { pred, conseq, alt } => {
                 JumpInstruction::BranchIfElseZero {
-                    pred: frame.lookup(pred)?,
-                    conseq: block_lookup.get(&conseq.as_key())?.clone(),
-                    alt: block_lookup.get(&alt.as_key())?.clone(),
+                    pred: reg_mapper(pred)?,
+                    conseq: block_mapper(&conseq)?,
+                    alt: block_mapper(&alt)?,
                 }
             }
             JumpInstruction::UnconditionalJump { dest } => JumpInstruction::UnconditionalJump {
-                dest: block_lookup.get(&dest.as_key())?.clone(),
+                dest: block_mapper(&dest)?,
             },
             JumpInstruction::Ret(val) => JumpInstruction::Ret(match val {
-                Some(val) => Some(frame.lookup(val)?),
+                Some(val) => Some(reg_mapper(val)?),
                 None => None,
             }),
         })
