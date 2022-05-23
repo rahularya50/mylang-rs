@@ -21,7 +21,7 @@ Details on evaluation are in https://github.com/rahularya50/mylang-rs/blob/maste
 At a high level, variable declaration evaluates to the initialized value and 
 if statements evaluate to a value iff the consequent and alternate both do.
 
-## Compiler Frontned
+## Compiler Frontend
 1. A straightforward lexer and parser take the input file and convert it into a tree of `ParseExpr`s, in `src/frontend/`.
 2. Semantic analysis generates a `Program` struct, viewed as a hierarchy of typed syntax elements, and verifies that all syntactic constructs above are used correctly, in `src/semantics/`
 3. The `Program` struct is then lowered into a control-flow graph of basic blocks in `src/ir/gen.rs`, using a set of primitive instructions defined in `src/ir/instructions.rs`.
